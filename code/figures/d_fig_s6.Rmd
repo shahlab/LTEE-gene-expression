@@ -1,0 +1,167 @@
+---
+title: "Figure S6"
+output: 
+  html_document:
+    df_print: paged
+author: "John Favate"
+date: "`r Sys.time()`"
+---
+
+<style type="text/css">
+.main-container {
+  max-width: 1500px;
+  margin-left: auto;
+  margin-right: auto;
+}
+</style>
+
+```{r}
+# Prevent printing of warnings and such in the HTML
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, fig.align = "center")
+```
+
+```{r}
+library(tidyverse)
+library(patchwork)
+library(ggridges)
+
+all.data <- read_csv("../../data_frames/all_data.csv")
+
+mutations <- read_csv("../../data_frames/LTEE-Ecoli-data 2020-05-04 15_18_48.csv")%>%
+  mutate(clone_id = str_remove(strain, "REL")) %>%
+  filter(population != "Ara+6")
+
+my.clones <- c("11330","11392","11333","11342","11345","11364","11336","11348","11339","11367","11370","11389")
+
+my.mutations <- mutations %>%
+  filter(clone_id %in% my.clones & time == 50000)
+```
+
+### Panel A
+
+Number of genes commonly sig for riboseq
+```{r}
+pa <- all.data %>%
+  filter(ds_padj_ribo <= .01) %>%
+  group_by(target_id) %>%
+  tally() %>% 
+  ungroup() %>% 
+  mutate(fac = "Ribo-seq") %>% 
+  ggplot(., aes(n))+
+  geom_bar()+
+  theme_classic()+
+  theme(text = element_text(size = 13),
+        strip.background = element_rect(fill = "grey90", color = NA))+
+  labs(x = "Number of lines in which a gene is significantly altered",
+       y = "Number of genes",
+       title = "A")+
+  scale_x_continuous(breaks = 1:11)+
+  stat_count(geom = "text", colour = "black", size = 4, aes(label = ..count..), vjust = -.25)+
+  scale_y_continuous(limits = c(0, 800), breaks = seq(0, 800, 200))+
+  facet_wrap(~fac)
+
+pa
+```
+
+### Panel B
+
+Bs data frame
+```{r}
+bdf <- all.data %>%
+  filter(ds_padj_ribo <= .01) %>%
+  select(line, target_id, ds_log2foldchange_ribo) %>%
+  group_by(target_id) %>%
+  mutate(count = factor(n(), levels = 1:11),
+         direc = ifelse(ds_log2foldchange_ribo > 0, "Upregulated", "Downregulated")) %>%
+  ungroup()
+
+bdf
+```
+
+New labels for B
+```{r}
+b.y.labs <- bdf %>%
+  group_by(count, direc) %>%
+  tally() %>%
+  pivot_wider(names_from = direc, values_from = n) %>%
+  replace_na(list("Upregulated" = 0)) %>%
+  mutate(newlab = paste(count, " (", Downregulated, "/", Upregulated, ")", sep = "")) %>%
+  pull(newlab)
+
+bdf$direc <- factor(bdf$direc, levels = c("Upregulated", "Downregulated"))
+```
+
+Bs plot
+```{r}
+pb <- bdf %>%
+  mutate(fac = "Ribo-seq") %>% 
+  ggplot(., aes(y = count, x = abs(ds_log2foldchange_ribo), fill = direc))+
+  geom_density_ridges(alpha = .5, scale = .999)+
+  theme_classic()+
+  theme(text = element_text(size = 13),
+        strip.background = element_rect(fill = "grey90", color = NA),
+        legend.position = "bottom")+
+  scale_fill_manual(name = NULL, values = c("dodgerblue2", "firebrick2"))+
+  labs(y = "Number of lines in which a\ngene is significantly altered",
+       x = expression(paste("Absolute fold-change ", "|", log[2], "(fold change)", "|")),
+       title = "B")+
+  scale_x_continuous(limits = c(0, 10))+
+  facet_wrap(~fac)
+
+pb
+```
+
+### Panel C
+
+```{r}
+cdf <- bdf %>% 
+  group_by(count, direc) %>% 
+  tally() %>% 
+  ungroup() %>% 
+  pivot_wider(names_from = direc, values_from = n) %>% 
+  replace_na(list(Upregulated = 0, Downregulated = 0)) %>% 
+  mutate(pd = Downregulated / (Upregulated + Downregulated),
+         pu = Upregulated / (Upregulated + Downregulated)) %>% 
+  pivot_longer(c(pd, pu)) %>% 
+  mutate(point = ifelse(name != "pu", value, NA),
+         fac = "Ribo-seq")
+
+cdf$name <- factor(cdf$name, levels = c("pu", "pd"))
+
+pc <- cdf%>% 
+  ggplot(.)+
+  geom_col(aes(as.numeric(count), value, fill = name), alpha = .5)+
+  geom_smooth(aes(as.numeric(count), point), method = "lm", color = "grey30", se = FALSE)+
+  geom_point(aes(as.numeric(count), point), color = "grey30")+
+  scale_fill_manual(name = NULL, values = c("dodgerblue2", "firebrick2"), labels = c("Upregulated", "Downregulated"))+
+  labs(x = "Number of lines in which a gene is significantly altered",
+       y = "Proportion of genes",
+       title = "C")+
+  theme_classic()+
+  theme(text = element_text(size = 13),
+        legend.direction = "horizontal",
+        legend.position = c(.5, .96),
+        legend.background = element_blank(),
+        strip.background = element_rect(fill = "grey90", color = NA))+
+  scale_y_continuous(limits  = c(0, 1.1), breaks = c(seq(0, 1, .5)))+
+  scale_x_continuous(breaks = 1:11)
+
+pc
+```
+
+### Final figure
+
+```{r fig.width = 15.2, fig.height = 5.5}
+(ff <- pa | pb | pc)
+```
+
+```{r}
+ggsave(ff, filename = "../../figures/d_fig_s6.pdf", width = 15.2, height = 5.5)
+
+ggsave(ff, filename = "../../figures/d_fig_s6.png", dpi = 300, width = 15.2, height = 5.5)
+```
+
+```{r}
+sessionInfo()
+```
+

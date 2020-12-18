@@ -1,0 +1,150 @@
+---
+title: "Figure S1"
+output: 
+  html_document:
+    df_print: paged
+author: "John Favate"
+date: "`r Sys.time()`"
+---
+
+<style type="text/css">
+.main-container {
+  max-width: 1500px;
+  margin-left: auto;
+  margin-right: auto;
+}
+</style>
+
+```{r}
+# Prevent printing of warnings and such in the HTML
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, fig.align = "center")
+```
+
+```{r}
+library(tidyverse)
+library(patchwork)
+```
+
+Load the kallisto results, change some names for labeling purposes, and factor some columns
+```{r}
+kdf <- read_csv("../../data_frames/kallisto_results.csv") %>% 
+  unite("sample", c(repl, seqtype), remove = FALSE)
+
+kdf$seqtype <- gsub("rna", "RNA-seq", kdf$seqtype) %>% 
+  gsub("ribo", "Ribo-seq", .)
+
+kdf$seqtype <- factor(kdf$seqtype, levels = c("RNA-seq", "Ribo-seq"))
+
+kdf$sample <- factor(kdf$sample, levels = c("rep1_rna", "rep2_rna", "rep1_ribo", "rep2_ribo"))
+```
+
+Find the mean number of reads per gene for each sample and rep
+```{r}
+rpg <- kdf %>% 
+  filter(grepl("ECB", target_id)) %>% 
+  group_by(repl, seqtype, line, sample) %>% 
+  summarise(mean_reads_per_gene = mean(est_counts))
+
+head(rpg)
+```
+
+### Panel A
+
+Mean reads per gene per sample
+```{r}
+pa <- ggplot(rpg, aes(line, mean_reads_per_gene, fill = sample))+
+  geom_col(position = "dodge")+
+  scale_fill_manual(values = c("#A6CEE3", "#1F78B4", "#FDBF6F", "#FF7F00"),
+                    name = NULL,
+                    labels = c("RNA-seq 1", "RNA-seq 2", "Ribo-seq 1", "Ribo-seq 2"))+
+  theme_classic()+
+  theme(legend.position = c(.09, .8), 
+        panel.grid = element_blank(),
+        text = element_text(size = 13),
+        legend.background = element_blank(),
+        strip.background = element_rect(fill = "grey90", color = NA))+
+  labs(x = NULL,
+       y = "Mean reads per gene",
+       title = "A")+
+  scale_y_continuous(limits = c(0, 2000), breaks = seq(0, 2000, 500))
+
+pa
+```
+
+### Panel B
+
+Read in the data frame.
+```{r}
+nt.df <- read_csv("../../data_frames/three_nt_periodicity.csv")
+```
+
+```{r fig.width = 10, fig.height = 3.5}
+pb <- nt.df %>%
+  filter(seqtype == "ribo") %>% 
+  unite("sample", seqtype, rep, sep = "_") %>% 
+  group_by(sample, line) %>% 
+  mutate(spec = scales::rescale(spec)) %>% 
+  ggplot(., aes(period, spec, color = sample))+
+  geom_line(size = 1)+
+  facet_wrap(~ line, ncol = 7)+
+  scale_color_manual(values = c("#FDBF6F", "#FF7F00"), labels = c("Ribo-seq 1", "Ribo-seq 2", "RNA-seq 1", "RNA-seq 2"), name = NULL, guide = FALSE)+
+  theme_bw()+
+  theme(legend.position = c(.04, .88), 
+        panel.grid = element_blank(),
+        text = element_text(size = 13),
+        legend.background = element_blank())+
+  scale_y_continuous(limits = c(0, 1), breaks = c(0, .5, 1))+
+  labs(x = "Period",
+       y = "Normalized signal strength",
+       title = "B")+
+  scale_x_continuous(breaks = c(2,3,4))
+
+pb
+```
+
+### Panel C
+
+Distributions of reads per gene
+```{r fig.width = 15, fig.height = 3.5}
+pc <- kdf %>% 
+  ggplot(aes(est_counts, fill = sample))+
+  geom_density(alpha = .5)+
+  facet_grid(seqtype ~ line)+
+  scale_x_log10(labels = scales::trans_format("log10", scales::math_format(10^.x)))+
+  scale_y_continuous(breaks = c(0, .2, .4))+
+  scale_fill_manual(values = c("#A6CEE3", "#1F78B4", "#FDBF6F", "#FF7F00"),
+                    name = NULL,
+                    labels = c("RNA-seq 1", "RNA-seq 2", "Ribo-seq 1", "Ribo-seq 2"),
+                    guide = FALSE)+
+  theme_bw()+
+  theme(legend.position = c(.1, .85), 
+        panel.grid = element_blank(),
+        text = element_text(size = 13),
+        legend.background = element_blank(),
+        strip.background = element_rect(fill = "grey90", color = NA))+
+  labs(x = expression(paste(log[10], "(rounded read counts)")),
+       y = "Frequency",
+       title = "C")
+
+pc
+```
+
+### Final figure
+
+```{r fig.width = 17, fig.height = 7}
+top <- (pa | pb) + plot_layout(widths = c(.5, .5))
+
+(ff <- top / pc)
+```
+
+Save as a pdf and png
+```{r}
+ggsave(ff, filename = "../../figures/a_fig_s1.pdf", width = 17, height = 7)
+
+ggsave(ff, filename = "../../figures/a_fig_s1.png", dpi = 300, width = 17, height = 7)
+```
+
+```{r}
+sessionInfo()
+```
+

@@ -1,0 +1,207 @@
+---
+title: "KEGG analysis"
+output: 
+  html_document:
+    df_print: paged
+author: "John Favate"
+date: "`r Sys.time()`"
+---
+
+<style type="text/css">
+.main-container {
+  max-width: 1500px;
+  margin-left: auto;
+  margin-right: auto;
+}
+</style>
+
+```{r warning = FALSE, message = FALSE}
+# Prevent printing of warnings and such in the HTML
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, fig.align = "center")
+```
+
+Read in packages an necessary data
+```{r}
+library(tidyverse)
+library(clusterProfiler)
+library(patchwork)
+
+all.data <- read_csv("../../data_frames/all_data.csv")
+```
+
+mutator order and colors
+```{r}
+mut.levels <- all.data %>%
+  select(line, mutator) %>%
+  arrange(mutator, line) %>%
+  unique() %>%
+  pull(line)
+
+mut.colors <- c("black", rep("black", 5), rep("firebrick3", 5))
+```
+
+Make deletions have fold change of -10
+```{r}
+fc.df.dels <- all.data %>%
+  filter(gene_type == "ECB") %>% 
+  select(line, target_id, ds_log2foldchange_rna, ds_log2foldchange_ribo, deleted) %>% 
+  mutate(ds_log2foldchange_rna = ifelse(deleted == TRUE, -1, ds_log2foldchange_rna),
+         ds_log2foldchange_ribo = ifelse(deleted == TRUE, -1, ds_log2foldchange_ribo))
+
+fc.df <- all.data %>%
+  filter(gene_type == "ECB") %>% 
+  select(line, target_id, ds_log2foldchange_rna, ds_log2foldchange_ribo, deleted)
+```
+
+
+This requires a named vector where the elements of the vector are fold change in decreasing order and the names are the target_id's. This is done only on ECB type genes, i.e. protein coding, not tRNA or ERCC.
+```{r}
+fcs.vecs <- fc.df %>% 
+  # only need these cols
+  select(line, target_id, ds_log2foldchange_rna, ds_log2foldchange_ribo) %>%
+  # reshape to be able to split by two things
+  pivot_longer(., col = starts_with("ds_"), names_to = "seqtype", values_to = "l2fc") %>%
+  # remove unnecessary string to leave just seqtype 
+  mutate(seqtype = str_remove(seqtype, "ds_log2foldchange_")) %>%
+  # split based on line/seqtype
+  split(list(.$line, .$seqtype)) %>%
+  map(function(x){
+    # place in desc order
+    df <- x %>%
+      filter(!is.na(l2fc)) %>%
+      arrange(desc(l2fc))
+    
+    # vec of fold changes  
+    fcs <- pull(df, l2fc)
+    
+    # name that
+    names(fcs) <- df$target_id
+    
+    return(fcs)
+  })
+
+fcs.vecs.dels <- fc.df.dels %>% 
+  # only need these cols
+  select(line, target_id, ds_log2foldchange_rna, ds_log2foldchange_ribo) %>%
+  # reshape to be able to split by two things
+  pivot_longer(., col = starts_with("ds_"), names_to = "seqtype", values_to = "l2fc") %>%
+  # remove unnecessary string to leave just seqtype 
+  mutate(seqtype = str_remove(seqtype, "ds_log2foldchange_")) %>%
+  # split based on line/seqtype
+  split(list(.$line, .$seqtype)) %>%
+  map(function(x){
+    # place in desc order
+    df <- x %>%
+      filter(!is.na(l2fc)) %>%
+      arrange(desc(l2fc))
+    
+    # vec of fold changes  
+    fcs <- pull(df, l2fc)
+    
+    # name that
+    names(fcs) <- df$target_id
+    
+    return(fcs)
+  })
+
+head(fcs.vecs[[1]])
+```
+
+```{r}
+kegg.df.list <- lapply(fcs.vecs, function(x){
+  gse <- gseKEGG(x,
+                 organism = "ebr",
+                 minGSSize = 2,
+                 maxGSSize = 1000,
+                 pvalueCutoff = 1,
+                 eps = 0)
+  
+  return(as_tibble(gse))
+})
+
+#bind them all and separate the sample label
+kegg.df <- bind_rows(kegg.df.list, .id = "sample") %>%
+  separate(sample, into = c("line", "seqtype"), sep = "\\.")
+
+names(kegg.df) <- tolower(names(kegg.df))
+
+kegg.df
+```
+
+for with dels as -10
+```{r}
+kegg.df.list.dels <- lapply(fcs.vecs.dels, function(x){
+  gse <- gseKEGG(x,
+                 organism = "ebr",
+                 minGSSize = 2,
+                 maxGSSize = 1000,
+                 pvalueCutoff = 1,
+                 eps = 0)
+  
+  return(as_tibble(gse))
+})
+
+#bind them all and separate the sample label
+kegg.df.dels <- bind_rows(kegg.df.list.dels, .id = "sample") %>%
+  separate(sample, into = c("line", "seqtype"), sep = "\\.")
+
+names(kegg.df.dels) <- tolower(names(kegg.df.dels))
+
+kegg.df.dels
+
+write_csv(kegg.df.dels, "../../data_frames/kegg_results.csv")
+```
+
+Pick terms that are sig in at least 4 lines and order them by mean enrichment score across the lines. 
+```{r fig.width = 15, fig.height = 13}
+fac.labs <- c("rna" = "RNA-seq", "ribo" = "Ribo-seq")
+
+df.list <- lapply(list("nodels" = kegg.df, "dels" = kegg.df.dels), function(x){
+  # get the terms
+  sig.terms <- x %>%
+  filter(seqtype == "rna") %>% 
+  filter(qvalues <= .05) %>%
+  group_by(description) %>%
+  tally() %>%
+  ungroup() %>%
+  filter(n >= 4 & !is.na(description)) %>%
+  pull(description)
+
+  # decide the order
+  term.order <- x %>%
+  filter(description %in% sig.terms) %>%
+  group_by(description) %>%
+  summarise(mean.es = mean(enrichmentscore)) %>%
+  arrange(mean.es) %>%
+  pull(description)
+
+  x$description <- factor(x$description, levels = rev(term.order))
+
+  x$line <- factor(x$line, levels = mut.levels)
+
+  x$seqtype <- factor(x$seqtype, levels= c("rna", "ribo"))
+  
+  x %>%
+  filter(description %in% sig.terms) %>%
+  mutate(sigstar = ifelse(qvalues <= .01, "**", ifelse(qvalues <= .05, "*", ""))) %>%
+  ggplot(., aes(line, description, fill = enrichmentscore, label = sigstar))+
+  geom_raster()+
+  scale_fill_gradientn(name = "Enrichment score",
+                       colors = c("firebrick3", "white", "dodgerblue3"),
+                       breaks = seq(-1, 1, .5),
+                       labels = c(-1, "", 0, "", 1),
+                       limits = c(-1, 1))+
+  geom_text()+
+  theme(legend.position = "bottom")+
+  labs(x = NULL, y = NULL)+
+  theme(panel.background = element_blank(),
+        axis.ticks = element_blank(),
+        text = element_text(size = 13),
+        axis.text.x = element_text(color = mut.colors))+
+  facet_wrap(~ seqtype, labeller = as_labeller(fac.labs))
+})
+
+df.list$dels / df.list$nodels
+```
+
+main keeg figure with top5/bottom5, 1 supp figure with go top5 bottom 5 per ontology, tables for the rest

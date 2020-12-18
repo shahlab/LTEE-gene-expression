@@ -1,0 +1,305 @@
+---
+title: "Figure 6"
+output: 
+  html_document:
+    df_print: paged
+author: "John Favate"
+date: "`r Sys.time()`"
+---
+
+<style type="text/css">
+.main-container {
+  max-width: 1500px;
+  margin-left: auto;
+  margin-right: auto;
+}
+</style>
+
+Figure 6 contains the KEGG and PPS results
+
+```{r}
+# Prevent printing of warnings and such in the HTML
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(corrr)
+library(patchwork)
+library(ggpubr)
+library(ggrepel)
+
+all.data <- read_csv("../../data_frames/all_data.csv")
+
+# mutator order and colors
+mut.levels <- all.data %>%
+  select(line, mutator) %>%
+  arrange(mutator, line) %>%
+  unique() %>%
+  pull(line)
+
+mut.colors <- c("black", rep("black", 5), rep("firebrick3", 5))
+```
+
+### Panel A
+
+Heatmap of KEGG scores
+```{r}
+kegg.df <- read_csv("../../data_frames/kegg_results.csv")
+
+head(kegg.df)
+```
+
+We would like to display the top 5 up and downregulated categories, with top being determined by the mean enrichment score across the lines but only for categories that are significant in at least 4 lines. Find all the categorie that are significant in at least 4 lines.
+```{r}
+sig.terms <- kegg.df %>%
+  filter(seqtype == "rna") %>% 
+  filter(qvalues <= .05) %>%
+  group_by(description) %>%
+  tally() %>%
+  ungroup() %>%
+  filter(n >= 4 & !is.na(description)) %>%
+  pull(description)
+```
+
+Order the terms by mean enrichment score across the lines, this makes an ordered vector where the ends are the top up and down pathways.
+```{r}
+# decide the order
+term.order <- kegg.df %>%
+  filter(description %in% sig.terms) %>%
+  group_by(description, seqtype) %>%
+  summarise(mean.es = mean(enrichmentscore)) %>%
+  filter(seqtype == "rna") %>% 
+  arrange(mean.es) %>%
+  pull(description)
+
+# get the top terms
+top.terms <- c(head(term.order, 6), tail(term.order, 6))
+```
+
+Factor the data frame by various metrics to enforce axis order.
+```{r}
+kegg.df$description <- factor(kegg.df$description, levels = rev(term.order))
+
+kegg.df$line <- factor(kegg.df$line, levels = mut.levels)
+
+kegg.df$seqtype <- factor(kegg.df$seqtype, levels= c("rna", "ribo"))
+```
+
+Plot
+```{r}
+fac.labs <- c("rna" = "RNA-seq altered KEGG pathways", "ribo" = "Ribo-seq")
+
+pa <- kegg.df %>%
+  filter(description %in% top.terms & seqtype == "rna") %>%
+  mutate(sigstar = ifelse(qvalues <= .01, "**", ifelse(qvalues <= .05, "*", ""))) %>%
+  ggplot(., aes(line, description, fill = enrichmentscore, label = sigstar))+
+  geom_raster()+
+  scale_fill_gradientn(name = "Enrichment score",
+                       colors = c("firebrick3", "white", "dodgerblue3"),
+                       breaks = seq(-1, 1, .5),
+                       labels = c(-1, "", 0, "", 1),
+                       limits = c(-1, 1),
+                       guide = guide_colorbar(ticks.colour = "black"))+
+  geom_text()+
+  theme(legend.position = "bottom")+
+  labs(x = NULL, y = NULL, title = "A")+
+  theme(panel.background = element_blank(),
+        axis.ticks = element_blank(),
+        text = element_text(size = 13),
+        axis.text.x = element_text(color = mut.colors))+
+  facet_wrap(~ seqtype, labeller = as_labeller(fac.labs))+
+  scale_y_discrete(labels = scales::label_wrap(width = 40))
+
+pa
+```
+
+### Panel B
+
+The PPS section, load the PPS data frame
+```{r}
+pps.df <- read_csv("../../data_frames/pps_scores.csv")
+```
+
+Remove some odd characters
+```{r}
+pps.df$common_name <- gsub("<i>N<\\/i>", "N", pps.df$common_name) %>%
+  gsub("<i>O<\\/i>", "O", .) %>%
+  gsub("(<i>E. coli<\\/i>)", "", .) %>% 
+  gsub("\\(\\)", "", .)
+```
+
+Determine the top the top n pathways by looking at mean PPS across lines
+```{r}
+path.order <- pps.df %>% 
+  filter(type == "actual" & seqtype == "rna") %>% # only the actual PPS for RNAseq
+  group_by(common_name) %>%                       # for each pathway
+  summarise(mean_pps = mean(pps)) %>%             # calc mean pps
+  ungroup() %>%                                   #
+  arrange(desc(mean_pps)) %>%                     # order pathways by decreasing PPS
+  pull(common_name)                               # get pathway identifier
+```
+
+Pick the top n pathways to display and create a data frame for graphing
+```{r}
+tops <- path.order[1:10]
+
+bdf <- pps.df %>% 
+  filter(seqtype == "rna" & type == "actual" & common_name %in% tops) %>% # pick those top pathways for RNAseq
+  mutate(common_name = factor(common_name, levels = tops))                # factor so they appear in order of inc PPS
+
+head(bdf)
+```
+
+Graph them
+```{r fig.height = 5, fig.width = 10}
+b.labs <- c("0", "1", "2", "3", "4", paste("\u2265", 5))
+
+pb <- bdf %>%
+  mutate(newpps = ifelse(pps > 5, 5, pps),
+         faclab = "RNA-seq BioCyc pathways") %>% 
+  ggplot(., aes(line, common_name, fill = newpps))+
+  geom_raster()+
+  theme(legend.position = "bottom")+
+  labs(x = NULL, y = NULL, title = "B")+
+  theme(panel.background = element_blank(),
+        axis.ticks = element_blank(),
+        text = element_text(size = 13),
+        axis.text.x = element_text(color = mut.colors))+
+  scale_fill_viridis_c(option = "D", name = "PPS", labels = b.labs)+
+  scale_y_discrete(labels = scales::label_wrap(width = 40))+
+  facet_wrap(~faclab)
+
+pb
+```
+
+### Panel C
+
+Line to line correlations of KEGG scores in each line. This will compare among categories that were significant in any line.
+```{r}
+# get the id of any sig category
+sig.keggs <- kegg.df %>% 
+  filter(qvalues <= .01) %>% 
+  pull(id) %>% 
+  unique()
+
+# create the df for the plot
+cdf <- kegg.df %>% 
+  filter(id %in% sig.keggs) %>%                                # only use that set of ids
+  select(line, id, seqtype, enrichmentscore) %>%               # keep these cols
+  pivot_wider(names_from = line,                               # reshape to cols of pathway, lines, cells of kegg scores
+              values_from = enrichmentscore) %>%               #
+  select(-id) %>%                                              # remove this column
+  split(.$seqtype) %>%                                         # for each seqtype
+  map(function(x){                                             #
+    x %>%                                                      #
+      select(-seqtype) %>%                                     # remove this column
+      correlate(diagonal = NA, method = "spearman") %>%        # make correlation matrix
+      shave() %>%                                              # remove redundant entries, the diaganol
+      pivot_longer(cols = starts_with("Ara"),                  # reshape to line1, line2, rs
+                   values_to = "rs",                           #
+                   names_to = "line") %>%                      #
+      filter(!is.na(rs))                                       # remove NAs
+  }) %>%                                                       #
+  bind_rows(.id = "seqtype") %>%                               # combine to one data frame
+  mutate(seqtype = factor(seqtype, levels = c("rna", "ribo"))) # order so rna comes first
+```
+A plot
+```{r}
+pc <- ggplot(cdf, aes(x = seqtype, y = rs, fill = seqtype, color = seqtype))+
+  geom_violin(alpha = .5)+
+  geom_jitter(height = 0, width = .2)+
+  scale_y_continuous(limits = c(0,1), breaks = c(0, .5, 1))+
+  theme_classic()+
+  theme(text = element_text(size = 13),
+        axis.ticks.x = element_blank())+
+  labs(x = NULL, 
+       y = "Pairwise correlation of\nenrichment scores", 
+       title = "C")+
+  guides(fill = FALSE)+
+  scale_x_discrete(labels = c("RNA-seq", "Ribo-seq"))+
+  scale_color_discrete(guide = FALSE)+
+  scale_fill_discrete(guide = FALSE)
+
+pc
+```
+
+
+### Panel D
+
+A figure that shows that PPS scores for lines are correlated.
+```{r}
+pps.cors <- pps.df %>%
+  split(list(.$type, .$iteration, .$seqtype), drop = TRUE) %>%            # separate by these
+  map(function(x){                                                        #
+    x %>%                                                                 #
+      select(-seqtype, -type, -iteration, -common_name) %>%               # only retain these columns
+      pivot_wider(., names_from = line, values_from = pps) %>%            # reshape to rows of pathways, cols of lines, cells of pps
+      select(-pathway) %>%                                                # remove the pathway col
+      correlate(diagonal = NA, method = "spearman") %>%                   # make correlation matrix
+      shave() %>%                                                         # remove the redundant entries
+      pivot_longer(., cols = starts_with("Ara"),                          # reshape to line1, line2, rs
+                   values_to = "rs",                                      #
+                   names_to = "line") %>%                                 #
+      filter(!is.na(rs))                                                  # get rid of NAs, the diagonal
+  }) %>%                                                                  #
+  bind_rows(.id = "sample") %>%                                           # bind to one df
+  separate(sample, into = c("type", "iteration", "seqtype"), sep = "\\.") # separate this column to three more
+
+# factor so rna comes first
+pps.cors$seqtype <- factor(pps.cors$seqtype, levels = c("rna", "ribo"))
+
+head(pps.cors)
+```
+
+These are statistically different, but it won't let me change that to p<.01 on the graph
+```{r}
+compare_means(formula = rs ~ type, data = pps.cors, group.by = "seqtype", method = "t.test")
+```
+
+The plot with altered labels
+```{r}
+pd <- pps.cors %>%
+  ggplot(., aes(seqtype, rs, fill = type))+
+  geom_violin(draw_quantiles = c(.25, .5, .75))+
+  scale_y_continuous(limits = c(-.25, 1), breaks = c(0, .5, 1))+
+  scale_fill_manual(values = c("orange2", "grey60"), name = NULL, labels = c("Observed", "Randomized"))+
+  theme_classic()+
+  theme(text = element_text(size = 13),
+        legend.position = c(.5, .05),
+        legend.background = element_blank(),
+        legend.direction = "horizontal",
+        legend.text = element_text(size = 11),
+        legend.key.size = unit(4, "mm"))+
+  labs(x = NULL,
+       y = "Pairwise correlation of\nPPS scores",
+       title = "D")+
+  scale_x_discrete(labels = c("RNA-seq", "Ribo-seq"))+
+  annotate("text", label = "p < .01", x = 1, y = 1)+
+  annotate("text", label = "p < .01", x = 2, y = 1)
+
+pd
+```
+
+### Final figure construction 
+
+The top row
+```{r fig.width = 19, fig.height = 6}
+left <- pa | pb
+
+right <- pc / pd
+
+(ff <- (left | right) + plot_layout(widths = c(.4,.4, .2), ncol = 3))
+```
+
+Save it
+```{r}
+ggsave(ff, filename = "../../figures/g_fig_6.pdf", width = 19, height = 6, device = cairo_pdf)
+
+ggsave(ff, filename = "../../figures/g_fig_6.png", width = 19, height = 6, dpi = 300)
+```
+
+```{r}
+sessionInfo()
+```
+

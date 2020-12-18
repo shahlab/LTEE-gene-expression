@@ -1,0 +1,137 @@
+---
+title: "Figure S3"
+output: 
+  html_document:
+    df_print: paged
+author: "John Favate"
+date: "`r Sys.time()`"
+---
+
+<style type="text/css">
+.main-container {
+  max-width: 1500px;
+  margin-left: auto;
+  margin-right: auto;
+}
+</style>
+
+```{r}
+# Prevent printing of warnings and such in the HTML
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, fig.align = "center")
+```
+
+```{r}
+library(tidyverse)
+library(ggpointdensity)
+library(ggpubr)
+library(patchwork)
+```
+
+### Panel A
+
+Linear models for each of the samples
+```{r}
+ercc.df <- read_csv("../../data_frames/ercc_molecules_per_sample.csv")
+
+head(ercc.df)
+```
+
+```{r fig.width = 13, fig.height = 4.5}
+pa <- ercc.df %>%
+  filter(line != "Ara+6" & seqtype == "rna") %>%
+  ggplot(., aes(molecules_of_seq, tpm, color = repl))+
+  geom_point(size = 1)+
+  geom_smooth(method = "lm", se = FALSE)+
+  stat_cor(aes(label = ..r.label..), show.legend = FALSE, label.x.npc = .05, label.y.npc = .95, size = 3)+
+  scale_y_log10(breaks = c(1e-2, 1e0, 1e2), labels = scales::trans_format("log10", scales::math_format(10^.x)))+
+  scale_x_log10(labels = scales::trans_format("log10", scales::math_format(10^.x)))+
+  theme_bw()+
+  theme(panel.background = element_blank(),
+        panel.grid = element_blank(),
+        text = element_text(size = 13),
+        legend.key = element_blank(),
+        legend.position = c(.93, .25))+
+  scale_color_manual(values = c("black", "grey50"), name = NULL, labels = c("Rep 1", "Rep 2"))+
+  labs(y = "TPM",
+       x = "Molecules of ERCC oligo added",
+       title = "A")+
+  facet_wrap(~line, ncol = 7)
+
+pa
+```
+
+### Panel B
+
+Scatterplot of changes to absolute amounts for all samples
+```{r}
+mols.per.cfu.df <- read_csv("../../data_frames/molecules_per_cfu.csv")
+
+head(mols.per.cfu.df)
+```
+
+Find mean molecules per cfu in the ancestors
+```{r}
+anc.means <- mols.per.cfu.df %>% 
+  filter(line %in% c("REL606", "REL607")) %>% 
+  group_by(target_id) %>% 
+  summarise(anc = mean(n_mol_per_cfu))
+```
+
+```{r fig.width = 13, fig.height = 4.5}
+pb <- mols.per.cfu.df %>% 
+  group_by(target_id, line) %>%
+  summarise(mmpcfu = mean(n_mol_per_cfu, na.rm = TRUE)) %>%
+  ungroup() %>%
+  left_join(anc.means) %>% 
+  ggplot(., aes(anc, mmpcfu))+
+  geom_abline(aes(slope = 1, intercept= 0), linetype = 5)+
+  geom_pointdensity(size = .5)+
+  scale_x_log10(limits = c(1e-4, 2e4), breaks = c(1e-3, 1e0, 1e3), labels = scales::trans_format("log10", scales::math_format(10^.x)))+
+  scale_y_log10(limits = c(1e-4, 2e4), breaks = c(1e-3, 1e0, 1e3), labels = scales::trans_format("log10", scales::math_format(10^.x)))+
+  theme_bw()+
+  theme(panel.background = element_blank(),
+        text = element_text(size = 13),
+        panel.grid = element_blank())+
+  labs(x = "Mean molecules/CFU in ancestor",
+       y = "Mean molecules/CFU in evolved",
+       title = "B")+
+  facet_wrap(~line, ncol = 7)+
+  scale_color_viridis_c(option = "B",
+                        name = "Neighboring points",
+                        guide = FALSE)
+
+pb
+
+mols.per.cfu.df %>% 
+  group_by(target_id, line) %>%
+  summarise(mmpcfu = mean(n_mol_per_cfu, na.rm = TRUE)) %>%
+  ungroup() %>% 
+  pull(mmpcfu) %>% 
+  .[.!=0] %>% 
+  min()
+
+mols.per.cfu.df %>% 
+  group_by(target_id, line) %>%
+  summarise(mmpcfu = mean(n_mol_per_cfu, na.rm = TRUE)) %>%
+  ungroup() %>% 
+  pull(mmpcfu) %>% 
+  .[.!=0] %>% 
+  max()
+```
+
+### Final figure
+
+```{r fig.width = 13, fig.height = 9}
+(ff <- pa / pb)
+```
+
+```{r}
+ggsave(ff, filename = "../../figures/b_fig_s3.pdf", width = 13, height = 9)
+
+ggsave(ff, filename = "../../figures/b_fig_s3.png", dpi = 300, width = 13, height = 9)
+```
+
+```{r}
+sessionInfo()
+```
+

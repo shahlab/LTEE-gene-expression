@@ -1,0 +1,301 @@
+---
+title: "Figure S8"
+output: 
+  html_document:
+    df_print: paged
+author: "John Favate"
+date: "`r Sys.time()`"
+---
+
+<style type="text/css">
+.main-container {
+  max-width: 1500px;
+  margin-left: auto;
+  margin-right: auto;
+}
+</style>
+
+```{r}
+# Prevent printing of warnings and such in the HTML
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, fig.align = "center")
+```
+
+```{r}
+library(tidyverse)
+library(patchwork)
+library(gridExtra)
+library(grid)
+library(corrr)
+library(ggpubr)
+
+pps.df <- read_csv("../../data_frames/pps_scores.csv")
+
+kegg.df <- read_csv("../../data_frames/kegg_results.csv")
+
+all.data <- read_csv("../../data_frames/all_data.csv")
+```
+
+This figure is for the first section functional analysis
+
+mutator order and colors
+```{r}
+mut.levels <- all.data %>%
+  select(line, mutator) %>%
+  arrange(mutator, line) %>%
+  unique() %>%
+  pull(line)
+
+mut.colors <- c("black", rep("black", 5), rep("firebrick3", 5))
+```
+
+### Panel A
+
+Heatmap of KEGG scores
+```{r}
+kegg.df <- read_csv("../../data_frames/kegg_results.csv")
+
+head(kegg.df)
+```
+
+We would like to display the top 5 up and downregulated categories, with top being determined by the mean enrichment score across the lines but only for categories that are significant in at least 4 lines. Find all the categorie that are significant in at least 4 lines.
+```{r}
+sig.terms <- kegg.df %>%
+  filter(seqtype == "ribo") %>% 
+  filter(qvalues <= .05) %>%
+  group_by(description) %>%
+  tally() %>%
+  ungroup() %>%
+  filter(n >= 4 & !is.na(description)) %>%
+  pull(description)
+```
+
+Order the terms by mean enrichment score across the lines, this makes an ordered vector where the ends are the top up and down pathways.
+```{r}
+# decide the order
+term.order <- kegg.df %>%
+  filter(description %in% sig.terms) %>%
+  group_by(description, seqtype) %>%
+  summarise(mean.es = mean(enrichmentscore)) %>%
+  filter(seqtype == "ribo") %>% 
+  arrange(mean.es) %>%
+  pull(description)
+
+# get the top terms
+top.terms <- c(head(term.order, 6), tail(term.order, 6))
+```
+
+Factor the data frame by various metrics to enforce axis order.
+```{r}
+kegg.df$description <- factor(kegg.df$description, levels = rev(term.order))
+
+kegg.df$line <- factor(kegg.df$line, levels = mut.levels)
+
+kegg.df$seqtype <- factor(kegg.df$seqtype, levels= c("rna", "ribo"))
+```
+
+Plot
+```{r}
+fac.labs <- c("rna" = "RNA-seq altered KEGG pathways", "ribo" = "Ribo-seq altered KEGG pathways")
+
+pa <- kegg.df %>%
+  filter(description %in% top.terms & seqtype == "ribo") %>%
+  mutate(sigstar = ifelse(qvalues <= .01, "**", ifelse(qvalues <= .05, "*", ""))) %>%
+  ggplot(., aes(line, description, fill = enrichmentscore, label = sigstar))+
+  geom_raster()+
+  scale_fill_gradientn(name = "Enrichment score",
+                       colors = c("firebrick3", "white", "dodgerblue3"),
+                       breaks = seq(-1, 1, .5),
+                       labels = c(-1, "", 0, "", 1),
+                       limits = c(-1, 1),
+                       guide = guide_colorbar(ticks.colour = "black"))+
+  geom_text()+
+  theme(legend.position = "bottom")+
+  labs(x = NULL, y = NULL, title = "A")+
+  theme(panel.background = element_blank(),
+        axis.ticks = element_blank(),
+        text = element_text(size = 13),
+        axis.text.x = element_text(color = mut.colors))+
+  facet_wrap(~ seqtype, labeller = as_labeller(fac.labs))+
+  scale_y_discrete(labels = scales::label_wrap(width = 40))
+
+pa
+```
+
+### Panel B
+
+The PPS section, load the PPS data frame
+```{r}
+pps.df <- read_csv("../../data_frames/pps_scores.csv")
+```
+
+Remove some odd characters
+```{r}
+pps.df$common_name <- gsub("<i>N<\\/i>", "N", pps.df$common_name) %>%
+  gsub("<i>O<\\/i>", "O", .) %>%
+  gsub("(<i>E. coli<\\/i>)", "", .) %>% 
+  gsub("\\(\\)", "", .)
+```
+
+Determine the top the top n pathways by looking at mean PPS across lines
+```{r}
+path.order <- pps.df %>% 
+  filter(type == "actual" & seqtype == "ribo") %>% # only the actual PPS for RNAseq
+  group_by(common_name) %>%                        # for each pathway
+  summarise(mean_pps = mean(pps)) %>%              # calc mean pps
+  ungroup() %>%                                    #
+  arrange(desc(mean_pps)) %>%                      # order pathways by decreasing PPS
+  pull(common_name)                                # get pathway identifier
+```
+
+Pick the top n pathways to display and create a data frame for graphing
+```{r}
+tops <- path.order[1:10]
+
+bdf <- pps.df %>% 
+  filter(seqtype == "ribo" & type == "actual" & common_name %in% tops) %>% # pick those top pathways for RNAseq
+  mutate(common_name = factor(common_name, levels = tops))                 # factor so they appear in order of inc PPS
+
+head(bdf)
+```
+
+Graph them
+```{r fig.height = 5, fig.width = 10}
+b.labs <- c("0", "1", "2", "3", "4", paste("\u2265", 5))
+
+pb <- bdf %>%
+  mutate(newpps = ifelse(pps > 5, 5, pps)) %>% 
+  ggplot(., aes(line, common_name, fill = newpps))+
+  geom_raster()+
+  theme(legend.position = "bottom")+
+  labs(x = NULL, y = NULL, title = "B")+
+  theme(panel.background = element_blank(),
+        axis.ticks = element_blank(),
+        text = element_text(size = 13),
+        axis.text.x = element_text(color = mut.colors))+
+  scale_fill_viridis_c(option = "D", name = "PPS", labels = b.labs)+
+  scale_y_discrete(labels = scales::label_wrap(width = 40))
+
+pb
+```
+
+### Panel C
+
+Correlation of RNA_seq and Ribo-seq PPS scores as well as correlation of KEGG RNA-seq and Ribo-seq enrichment scores. This shows that the riboseq and RNAseq data say the same thing. Compare RNAseq/riboseq PPS.
+```{r fig.width = 4.5, fig.height = 4}
+pps.rna.ribo.cors <- pps.df %>%                            #
+  filter(type == "actual") %>%                             # keep actual PPS, not randomized
+  select(pathway, line, pps, seqtype) %>%                  # retain these cols
+  pivot_wider(names_from = seqtype, values_from = pps) %>% # reshape each seqtype has its own col
+  split(.$line) %>%                                        # for each line
+  map(function(x){                                         # compare the rna/ribo scores
+    x %>%                                                  #
+      select(-line, -pathway) %>%                          # remove these cols
+      corrr::correlate(method = "spearman") %>%            # compare the RNAseq and riboseq cors
+      .[2,2]                                               # pick the correlation, the others are redundancies
+  }) %>%                                                   #
+  bind_rows(.id ="line") %>%                               # recombine the data
+  mutate(type = "PPS") %>%                                 # add a col that will differentiate from kegg
+  dplyr::rename("rs" = "rna")                              #
+```
+
+Do the same for the kegg.
+```{r}
+kegg.rna.ribo.cors <- kegg.df %>%                                      #
+  filter(description %in% sig.terms) %>%                               # consider all significant terms in any line
+  select(line, seqtype, id, enrichmentscore) %>%                       # retain these cols
+  pivot_wider(names_from = seqtype, values_from = enrichmentscore) %>% # reshape to rna/ribo cols
+  split(.$line) %>%                                                    # for each line
+  map(function(x){                                                     # compare the rna/ribo scores
+    x %>%                                                              #
+      select(-line, -id) %>%                                           # remove these cols
+      corrr::correlate(method = "spearman") %>%                        # correlate
+      .[2,2]                                                           # pick the cor, the other are redundant
+  }) %>%                                                               #
+  bind_rows(.id ="line") %>%                                           # recombine the lines
+  mutate(type = "Enrichment score") %>%                                # label to differentiate from pps
+  dplyr::rename("rs" = "ribo")                                         # rename that col
+```
+
+A plot of those
+```{r}
+pc <- bind_rows(kegg.rna.ribo.cors, pps.rna.ribo.cors) %>%
+  ggplot(., aes(type, rs))+
+  geom_jitter(height = 0, width = .2)+
+  geom_boxplot(fill = NA)+
+  scale_y_continuous(limits = c(0,1))+
+  theme_classic()+
+  theme(text = element_text(size = 13))+
+  labs(x = NULL, y = "Correlation between RNA-seq and\nRibo-seq scores within each line", title = "C")
+
+pc
+```
+
+```{r}
+df <- kegg.df %>%
+  filter(description %in% sig.terms) %>%
+  select(line, id, seqtype, enrichmentscore) %>%
+  pivot_wider(names_from = line, values_from = enrichmentscore) %>%
+  select(-id) %>%
+  split(.$seqtype) %>%
+  map(function(x){
+    x %>%
+      select(-seqtype) %>%
+      correlate(diagonal = NA, method = "spearman") %>%
+      shave() %>%
+      pivot_longer(., cols = starts_with("Ara"), values_to = "rs", names_to = "line") %>%
+      filter(!is.na(rs))
+  }) %>%
+  bind_rows(.id = "seqtype") %>%
+  mutate(seqtype = factor(seqtype, levels = c("rna", "ribo")))
+```
+
+### Panel D
+
+Distribution of PPS scores
+```{r}
+ddf <- pps.df %>%
+  filter(type == "actual")
+
+ddf$seqtype <- factor(ddf$seqtype, levels = c("rna", "ribo"))
+
+ddf$line <- factor(ddf$line, levels = mut.levels)
+
+pd <- ddf %>%
+  mutate(faclab = "Ribo-seq BioCyc pathways") %>% 
+  ggplot(., aes(line, pps, fill = seqtype))+
+  geom_boxplot(outlier.size = 1)+
+  theme_classic()+
+  theme(text = element_text(size = 13),
+        legend.position = c(.8, .9),
+        axis.text.x = element_text(color = mut.colors),
+        legend.background = element_blank(),
+        legend.direction = "horizontal")+
+  scale_fill_discrete(name = NULL, labels = c("RNA-seq", "Ribo-seq"))+
+  labs(x = NULL,
+       y = "PPS",
+       title = "D")+
+  facet_wrap(~faclab)
+
+pd
+```
+
+```{r fig.width = 16, fig.height = 8}
+ftop <- pa | pb
+
+fbottom <- (plot_spacer() | pc | pd) + plot_layout(widths = c(.1, .3, .6))
+
+(ff <- (ftop / fbottom) + plot_layout(heights = c(.6, .4)))
+```
+
+### Final figure
+
+```{r fig.width = 17, fig.height = 11}
+ggsave(ff, filename = "../../figures/g_fig_s8.pdf", width = 16, height = 8, device = cairo_pdf)
+
+ggsave(ff, filename = "../../figures/g_fig_s8.png", dpi = 300, width = 16, height = 8)
+```
+
+```{r}
+sessionInfo()
+```
+

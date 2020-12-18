@@ -1,0 +1,188 @@
+---
+title: "Figure S7"
+output: 
+  html_document:
+    df_print: paged
+author: "John Favate"
+date: "`r Sys.time()`"
+---
+
+```{r}
+# Prevent printing of warnings and such in the HTML
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(ggpointdensity)
+library(ggpubr)
+library(feather)
+library(patchwork)
+```
+Read in the data frames. 
+```{r}
+all.data <- read_csv("../../data_frames/all_data.csv") %>%
+  filter(line != "Ara+6")
+
+kdf <- read_csv("../../data_frames/kallisto_results.csv")
+```
+
+### Panel A
+
+Scatterplot to show correlation between RNAseq and riboseq. 
+```{r fig.width = 15, fig.height = 5}
+pa <- kdf %>%
+  group_by(seqtype, line, target_id) %>%                                            # for each seqtype/line/gene
+  summarise(mean_tpm = mean(tpm, na.rm = TRUE)) %>%                                 # avg replicates
+  ungroup() %>%
+  pivot_wider(names_from = seqtype, values_from = mean_tpm) %>%                     # reshape so they can be graphed against each other
+  filter(grepl("ECB", target_id)) %>%                                               # only consider e coli protein genes
+  ggplot(., aes(rna, ribo))+
+  geom_abline(aes(intercept = 0, slope = 1), linetype = 5)+
+  geom_pointdensity(size = 1)+
+  scale_x_log10(labels = scales::trans_format("log10", scales::math_format(10^.x)), #
+                limits = c(1e-3, 1e5),
+                breaks = c(1e-2, 1e0, 1e2, 1e4))+
+  scale_y_log10(labels = scales::trans_format("log10", scales::math_format(10^.x)),
+                limits = c(1e-3, 1e5),
+                breaks = c(1e-2, 1e0, 1e2, 1e4))+
+  scale_color_viridis_c(option = "B", name = "Neighboring points", guide = FALSE)+
+  theme_bw()+
+  theme(text = element_text(size = 13),
+        panel.grid = element_blank(),
+        legend.position = c(.92, .2))+
+  facet_wrap(~ line, ncol = 7)+
+  labs(x = "RNA-seq TPM",
+       y = "Ribo-seq TPM",
+       title = "A")+
+  stat_cor(aes(label = ..r.label..))
+
+pa
+```
+
+### Panel B
+
+Proline biosynth and tRNA charging
+```{r}
+# mutator line order
+mut.levels <- all.data %>%
+  select(line, mutator) %>%
+  arrange(mutator, line) %>%
+  unique() %>%
+  pull(line)
+
+# factor the lines
+ddf <- all.data
+
+ddf$line <- factor(ddf$line, levels = c(mut.levels))
+
+mut.colors.b <- c("black", rep("black", 5), rep("firebrick3", 5))
+
+# these are the proline related genes
+pro.prots <- c("ECB_00333", "ECB_00239", "ECB_00240", "ECB_00193", "ECB_04017")
+
+# make the scale labels the same as other plots, but no genes have fcs that high here
+threshold <- 3
+
+scale.labels <- c(paste("\u2264", paste0("-", threshold), sep = ""),
+                  "",
+                  0,
+                  "",
+                  paste("\u2265", threshold, sep = ""))
+
+# get separately, the fcs for each seqtype
+drna <- ddf %>%
+  filter(target_id %in% pro.prots) %>% 
+  select(line, rel_name, ds_log2foldchange_rna, ds_padj_rna,) %>%
+  mutate(sigstar = ifelse(ds_padj_rna <= .01, "*", "")) %>% 
+  rename("l2fc" = "ds_log2foldchange_rna", "padj" = "ds_padj_rna")
+
+dribo <- ddf %>%
+  filter(target_id %in% pro.prots) %>% 
+  select(line, rel_name, ds_log2foldchange_ribo, ds_padj_ribo,) %>%
+  mutate(sigstar = ifelse(ds_padj_ribo <= .01, "*", "")) %>% 
+  rename("l2fc" = "ds_log2foldchange_ribo", "padj" = "ds_padj_ribo")
+
+# combine them and plot
+pb <- bind_rows("RNA-seq" = drna, "Ribo-seq" = dribo, .id = "seqtype") %>%
+  mutate(seqtype = factor(seqtype, levels = c("RNA-seq", "Ribo-seq"))) %>% 
+  ggplot(., aes(rel_name, line, fill = l2fc))+
+  geom_raster()+
+  theme(panel.background = element_blank(),
+        text = element_text(size = 13),
+        axis.ticks = element_blank(),
+        axis.text.y = element_text(color = mut.colors.b),
+        axis.text.x = element_text(angle = 30, hjust = 1))+
+  labs(x = NULL, y = NULL, title = "B")+
+  facet_wrap(~seqtype)+
+  scale_fill_gradient2(low = "firebrick2", high = "dodgerblue2", 
+                       limits = c(-3, 3), 
+                       name = expression(paste(log[2], "(fold-change)", sep = "")), 
+                       breaks = c(-3, -1.5, 0, 1.5, 3),
+                       label = scale.labels,
+                       guide = guide_colorbar(ticks.colour = "black"))
+
+pb
+```
+
+### Panel C
+
+The individual changes for the termination factors
+```{r}
+# these are termination factors
+prots <- c("ECB_01186", "ECB_04250", "ECB_00170", "ECB_02723", "ECB_03191", "ECB_01187", "ECB_00231", "ECB_00230")
+
+crna <- ddf %>%
+  filter(target_id %in% prots) %>% 
+  select(line, rel_name, ds_log2foldchange_rna, ds_padj_rna,) %>%
+  mutate(sigstar = ifelse(ds_padj_rna <= .01, "*", "")) %>% 
+  rename("l2fc" = "ds_log2foldchange_rna", "padj" = "ds_padj_rna")
+
+cribo <- ddf %>%
+  filter(target_id %in% prots) %>% 
+  select(line, rel_name, ds_log2foldchange_ribo, ds_padj_ribo,) %>%
+  mutate(sigstar = ifelse(ds_padj_ribo <= .01, "*", "")) %>% 
+  rename("l2fc" = "ds_log2foldchange_ribo", "padj" = "ds_padj_ribo")
+
+# combine them and plot
+pc <- bind_rows("RNA-seq" = crna, "Ribo-seq" = cribo, .id = "seqtype") %>%
+  mutate(seqtype = factor(seqtype, levels = c("RNA-seq", "Ribo-seq"))) %>% 
+  ggplot(., aes(rel_name, line, fill = l2fc))+
+  geom_raster()+
+  theme(panel.background = element_blank(),
+        text = element_text(size = 13),
+        axis.ticks = element_blank(),
+        axis.text.y = element_text(color = mut.colors.b),
+        axis.text.x = element_text(angle = 30, hjust = 1))+
+  labs(x = NULL, y = NULL, title = "C")+
+  facet_wrap(~seqtype)+
+  scale_fill_gradient2(low = "firebrick2", high = "dodgerblue2", 
+                       limits = c(-3, 3), 
+                       name = expression(paste(log[2], "(fold-change)", sep = "")), 
+                       breaks = c(-3, -1.5, 0, 1.5, 3),
+                       label = scale.labels,
+                       guide = guide_colorbar(ticks.colour = "black"))
+
+pc
+```
+
+
+### Final figure
+
+```{r warning = FALSE, message = FALSE, fig.width = 12, fig.height = 8}
+bottom <- (pb | pc) + plot_layout(widths = c(.4, .6), guides = "collect")
+
+pa / bottom
+```
+
+Save it 
+```{r}
+ggsave("../../figures/e_fig_s7.pdf", width = 12, height = 8, device = cairo_pdf)
+
+ggsave("../../figures/e_fig_s7.png", width = 12, height = 8, dpi = 300)
+```
+
+```{r}
+sessionInfo()
+```
+

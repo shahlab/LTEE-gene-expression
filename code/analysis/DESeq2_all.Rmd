@@ -1,0 +1,223 @@
+---
+title: "DEseq2 all comparisons"
+output: 
+  html_document:
+    df_print: paged
+author: "John Favate"
+date: "`r Sys.time()`"
+---
+
+<style type="text/css">
+.main-container {
+  max-width: 1100px;
+  margin-left: auto;
+  margin-right: auto;
+}
+</style>
+
+```{r}
+# Prevent printing of warnings and such in the HTML
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, fig.align = "center")
+```
+
+```{r}
+library(tidyverse)
+library(DESeq2)
+```
+
+The other DESeq Rmd compares each evolved line to the ancestors. This document performs all non-redundant comparisons between evolved lines. There are 11 lines, hence 55 comparisons. 
+```{r}
+n_combos <-  function(n, k){
+  factorial(n) / factorial(n-k) / factorial(k)
+}
+
+n_combos(11, 2)
+```
+
+Read in the data, reshaping a bit and also removing the ancestors. 
+```{r}
+kdf2 <- read_csv("../../data_frames/kallisto_results.csv") %>% 
+  filter(grepl("ECB", target_id) & grepl("Ara", line)) %>% 
+  select(repl, line, target_id, est_counts, seqtype) %>% 
+  pivot_wider(names_from = repl, values_from = est_counts)
+
+head(kdf2)
+```
+
+We need a single data frame from each line that is target_id, counts_rep1, counts_rep2. These need to be separated by seqtype so RNAseq datasets aren't compared to riboseq datasets. 
+```{r}
+# the rnaseq datasets
+df.list.rna <- kdf2 %>% 
+  filter(seqtype == "rna") %>% 
+  split(.$line) %>% 
+  map(function(x){
+    # get the line
+    line <- x$line[1]
+    
+    # rename the rep columns so they have the line name in them otherwise the joined
+    # datasets wpuld have repeated col names
+    names(x) <- c("line", "target_id", "seqtype", paste0(line, "_rep1"), paste0(line, "_rep2"))
+    
+    # return the data frame sans line and seqtype columns
+    return(select(x, -line, -seqtype))
+  })
+
+# the riboseq datasets
+df.list.ribo <- kdf2 %>% 
+  filter(seqtype == "ribo") %>% 
+  split(.$line) %>% 
+  map(function(x){
+    line <- x$line[1]
+    
+    names(x) <- c("line", "target_id", "seqtype", paste0(line, "_rep1"), paste0(line, "_rep2"))
+    
+    return(select(x, -line, -seqtype))
+  })
+```
+
+Perform all non-redundant pairwise joins. The list names end up as `line1_line2` meaning the comparison between `line1` and `line2`. The factor levels won't matter in this case because it will just flip the sign and we're only looking for significance and absolute value of fold change. 
+```{r}
+pairs.rna <- unlist(combn(df.list.rna, 2, function(x){
+  setNames(list(do.call(left_join, unname(x))), paste(names(x), collapse = "_"))
+}, simplify = FALSE), FALSE)
+
+pairs.ribo <- unlist(combn(df.list.ribo, 2, function(x){
+  setNames(list(do.call(left_join, unname(x))), paste(names(x), collapse = "_"))
+}, simplify = FALSE), FALSE)
+```
+
+Reformat those for deseq
+```{r}
+pairs.rna2 <- lapply(pairs.rna, function(x){
+  x %>% 
+    mutate_if(is.double, as.integer) %>% # change all cols to class integer
+    column_to_rownames("target_id") %>%  # place target_ids in rownames
+    as.matrix()                          # convert to matrix
+})
+
+pairs.ribo2 <- lapply(pairs.ribo, function(x){
+  x %>% 
+    mutate_if(is.double, as.integer) %>% 
+    column_to_rownames("target_id") %>% 
+    as.matrix()
+})
+
+head(pairs.rna2[[1]], n = 5)
+```
+
+Run DESeq on each of those. This will take awhile, 10-15min depending on hardware. 
+```{r}
+# the conditions data frame doesn't matter, only that the first two cols are one thing and 3/4 are something else
+conds.df <- data.frame(condition = factor(c("a", "a", "b", "b"), levels = c("a", "b")))
+
+all.rna <- lapply(pairs.rna2, function(x){
+  d1 <- DESeqDataSetFromMatrix(countData = x,
+                               colData = conds.df,
+                               design = ~condition)
+  
+  d2 <- DESeq(d1)
+
+  d3 <- lfcShrink(d2,
+                  coef = 2,
+                  type = "apeglm")
+  
+  # return the results as a data frame with no rownames
+  d4 <- as_tibble(d3, rownames = "target_id")
+
+  return(d4)
+})
+
+all.ribo <- lapply(pairs.ribo2, function(x){
+  d1 <- DESeqDataSetFromMatrix(countData = x,
+                               colData = conds.df,
+                               design = ~condition)
+  
+  d2 <- DESeq(d1)
+
+  d3 <- lfcShrink(d2,
+                  coef = 2,
+                  type = "apeglm")
+  
+  # return the results as a data frame with no rownames
+  d4 <- as_tibble(d3, rownames = "target_id")
+
+  return(d4)
+})
+```
+
+Combine to a single data frame
+```{r}
+rna.big.df <- bind_rows(all.rna, .id = "sample") %>% 
+  separate(sample, into = c("line1", "line2"), sep = "_")
+
+ribo.big.df <- bind_rows(all.ribo, .id = "sample") %>% 
+  separate(sample, into = c("line1", "line2"), sep = "_")
+
+# final join of all data
+both.df <- bind_rows("rna" = rna.big.df, "ribo" = ribo.big.df, .id = "seqtype")
+```
+
+
+If a gene contained a deletion in either of the lines in a given comparison, change the fc and padj to NA. We need two versions of dels.df for this
+```{r}
+dels.df <- read_csv("../../data_frames/del_per_line.csv") %>% 
+  mutate(deleted = TRUE)
+
+dels.df1 <- dplyr::rename(dels.df, "line1" = "line", "deleted1" = "deleted")
+dels.df2 <- dplyr::rename(dels.df, "line2" = "line", "deleted2" = "deleted")
+```
+
+```{r}
+both.df2 <- left_join(both.df, dels.df1) %>%                                               # is it deleted in line 1?
+  left_join(dels.df2) %>%                                                                  # is it deleted in line 2?
+  replace_na(list(deleted1 = FALSE, deleted2 = FALSE)) %>%                                 # NA means FALSE in this case
+  mutate(log2FoldChange = ifelse(deleted1 == TRUE | deleted2 == TRUE, NA, log2FoldChange), # if it's deleted in either line, set fc to NA
+         padj = ifelse(deleted1 == TRUE | deleted2 == TRUE, NA, padj),                     # if it's deleted in either line, set padj to NA
+         sig = ifelse(is.na(padj) | padj > .01, FALSE, TRUE))                              # if it's not del/NA and padj<=.01, it's sig
+
+head(both.df2)
+```
+
+Save it 
+```{r}
+write_csv(both.df2, "../../data_frames/deseq_all_results.csv")
+```
+
+```{r}
+sessionInfo()
+```
+
+### Analysis
+
+```{r}
+d1 <- read_csv("../../data_frames/deseq_results.csv") %>% 
+  mutate(comp = "ae")
+
+d2 <- read_csv("../../data_frames/deseq_all_results.csv") %>% 
+  unite("line", c(line1, line2), sep = "_") %>% 
+  mutate(deleted = ifelse(deleted1 == TRUE | deleted2 == TRUE, TRUE, FALSE),
+         comp = "ee") %>% 
+  select(-deleted1, -deleted2)
+```
+
+Combine these 
+```{r}
+(ddf <- bind_rows(d1, d2))
+```
+
+The genes that are common and different to those datasets
+```{r}
+sig.gene.list <- ddf %>% 
+  split(list(.$comp, .$seqtype)) %>% 
+  map(function(x){
+    x %>% 
+      filter(sig == TRUE) %>% 
+      pull(target_id) %>% 
+      unique()
+  })
+```
+
+This counts the number of times something occurs in the combined vector, either 1 (unique to one of the vectors) or 2 (occurs in both) and then counts the 1s and 2s. hence 706 genes occur in one comparison and not the other and 1146 genes occur in both, there are more shared genes among the comparisons than there are different. 
+```{r}
+table(table(c(sig.gene.list$ae.rna, sig.gene.list$ee.rna)))
+```

@@ -1,0 +1,447 @@
+---
+title: "Figure 2"
+output: 
+  html_document:
+    df_print: paged
+author: "John Favate"
+date: "`r Sys.time()`"
+---
+
+<style type="text/css">
+.main-container {
+  max-width: 1500px;
+  margin-left: auto;
+  margin-right: auto;
+}
+</style>
+
+```{r}
+# Prevent printing of warnings and such in the HTML
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, fig.align = "center")
+```
+
+```{r}
+library(tidyverse)
+library(patchwork)
+library(ggpubr)
+library(ggridges)
+
+all.data <- read_csv("../../data_frames/all_data.csv")
+```
+
+Set line order and colors for axis.
+```{r}
+mut.levels <- all.data %>%
+  select(line, mutator) %>%
+  arrange(mutator, line) %>%
+  unique() %>%
+  pull(line)
+
+all.data$line <- factor(all.data$line, levels = mut.levels)
+
+mut.colors <- c(rep("black", 6), rep("firebrick3", 5))
+```
+
+### Panel A
+
+Find the top 100 up and downregulated genes in RNA-seq and use that as the order for the x axis
+```{r fig.width = 15, fig.height = 5}
+hmdf <- all.data %>%
+  filter(gene_type == "ECB") %>% 
+  select(line, target_id, starts_with("ds_log2foldchange")) %>% 
+  pivot_longer(starts_with("ds_log2foldchange"), names_to = "seqtype", values_to = "l2fc")
+
+ordered.genes <- hmdf %>%
+  filter(seqtype == "ds_log2foldchange_rna") %>% 
+  group_by(target_id) %>% 
+  summarise(mean_fc = mean(l2fc, na.rm = TRUE)) %>% 
+  ungroup() %>% 
+  filter(!is.nan(mean_fc)) %>% 
+  arrange(mean_fc) %>% 
+  pull(target_id)
+
+top.100 <- c(head(ordered.genes, n = 100), tail(ordered.genes, n = 100))
+```
+
+Factor the target_id column with the order, factor the line column, and set a max l2fc threshold to display
+```{r}
+hmdf$target_id <- factor(hmdf$target_id, levels = ordered.genes)
+
+hmdf$line <- factor(hmdf$line, levels = mut.levels)
+
+# pick a max fold change to display 
+threshold <- 3
+
+# change fold changes larger than that to the threshold
+hmdf$l2fc[hmdf$l2fc > threshold] <- threshold
+
+hmdf$l2fc[hmdf$l2fc < -threshold] <- -threshold
+```
+
+Facet labels for the graph
+```{r}
+scale.labels <- c(paste("\u2264", paste0("-", threshold), sep = ""),
+                  "",
+                  0,
+                  "",
+                  paste("\u2265", threshold, sep = ""))
+
+fac.labs <- c("ds_log2foldchange_rna" = "RNA-seq",
+              "ds_log2foldchange_ribo" = "Ribo-seq",
+              "Top 100 upregulated" = "RNA-seq Top 100 upregulated",
+              "Top 100 downregulated" = "RNA-seq Top 100 downregulated")
+```
+
+The graph
+```{r fig.width = 11, fig.height = 5}
+pa <- hmdf %>%
+  filter(target_id %in% top.100 & seqtype == "ds_log2foldchange_rna") %>%
+  mutate(gene.spec = ifelse(target_id %in% head(ordered.genes, n = 100), "Top 100 downregulated", "Top 100 upregulated")) %>%
+  ggplot(.)+
+  geom_raster(aes(target_id, line, fill = l2fc))+
+  scale_fill_gradientn(colours = c("firebrick2", "white", "dodgerblue2"),
+                       name = expression(paste(log[2], "(fold-change)", sep = "")),
+                       labels = scale.labels,
+                       breaks = c(-threshold, (-threshold/2), 0, (threshold/2), threshold),
+                       guide = guide_colorbar(ticks.colour = "black"))+
+  theme(panel.background = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks = element_blank(),
+        panel.grid = element_blank(),
+        axis.text.y = element_text(color = mut.colors),
+        text = element_text(size = 13),
+        legend.position = "right",
+        legend.direction = "vertical")+
+  labs(x = "Transcripts",
+       y = NULL,
+       title = "A")+
+  facet_wrap(~gene.spec, scales = "free_x", labeller = as_labeller(fac.labs))
+
+pa
+```
+
+### Panel B
+
+Ridges for significant fold changes in each line
+```{r fig.height = 3.5, fig.width = 5}
+bdf.rna <- all.data %>% 
+  filter(ds_padj_rna <= .01 & deleted == FALSE)
+
+bdf.ribo <- all.data %>% 
+  filter(ds_padj_ribo <= .01 & deleted == FALSE)
+
+bdf <- bind_rows(bdf.rna, bdf.ribo) %>%
+  select(line, target_id, starts_with("ds_log2")) %>% 
+  pivot_longer(where(is.numeric)) %>% 
+  mutate(direc = ifelse(value < 0, "down", "up"))
+
+bdf$line <- factor(bdf$line, levels = mut.levels)
+
+bdf$name <- factor(bdf$name, levels = c("ds_log2foldchange_rna", "ds_log2foldchange_ribo"))
+
+c.fac.labs <- c("ds_log2foldchange_rna" = "RNA-seq significant genes",
+                "ds_log2foldchange_ribo" = "Ribo-seq significant genes")
+
+bdf$direc <- factor(bdf$direc, levels = c("up", "down"))
+
+pb <- bdf %>%
+  filter(name == "ds_log2foldchange_rna") %>% 
+  ggplot(., aes(abs(value), line, fill = direc))+
+  geom_density_ridges(alpha = .5, scale = .999)+
+  scale_fill_manual(values = c("dodgerblue2", "firebrick2"), labels = c("Upregulated", "Downregulated"), name = NULL)+
+  theme_classic()+
+  theme(text = element_text(size = 13),
+        axis.text.y = element_text(color = mut.colors),
+        strip.background = element_rect(fill = "grey90", color = NA),
+        legend.position = c(.75, .96),
+        legend.direction = "horizontal",
+        legend.background = element_blank())+
+  labs(x = expression(paste("Absolute fold-changes ", "|", log[2], "(fold-change)|", sep = "")),
+       y = NULL,
+       title = "B")+
+  facet_wrap(~name, labeller = as_labeller(c.fac.labs))+
+  scale_x_continuous(limits = c(0, 13))
+
+pb
+```
+
+### Panel C
+
+This yields a list of two matrices of line to line correlations, one per seqtype.
+```{r}
+cor.list <- all.data %>%
+  filter(gene_type == "ECB") %>%
+  select(line, target_id, ds_log2foldchange_rna, ds_log2foldchange_ribo) %>%
+  pivot_longer(., cols = starts_with("ds_log"), names_to = "seqtype", values_to = "l2fc") %>% 
+  split(.$seqtype) %>%
+  map(function(x){
+    x %>%
+      pivot_wider(., -seqtype, names_from = line, values_from = l2fc) %>%
+      column_to_rownames("target_id") %>%                              
+      cor(method = "spearman", use = "pairwise.complete.obs")
+  })
+
+cor.list.sig <- all.data %>%
+  filter(gene_type == "ECB" & (ds_padj_rna <= .01 | ds_padj_ribo <= .01)) %>%
+  select(line, target_id, ds_log2foldchange_rna, ds_log2foldchange_ribo) %>%
+  pivot_longer(., cols = starts_with("ds_log"), names_to = "seqtype", values_to = "l2fc") %>% 
+  split(.$seqtype) %>%
+  map(function(x){
+    x %>%
+      pivot_wider(., -seqtype, names_from = line, values_from = l2fc) %>%
+      column_to_rownames("target_id") %>%                              
+      cor(method = "spearman", use = "pairwise.complete.obs")
+  })
+
+cor.list
+cor.list.sig
+```
+
+Save this for later
+```{r}
+cors.df2 <- lapply(cor.list, function(x){
+  as.data.frame(x) %>%
+    rownames_to_column("line") %>%
+    pivot_longer(cols = starts_with("A"), names_to = "other_line", values_to = "rs") %>%
+    filter(line != other_line)
+}) %>%
+  bind_rows(.id = "seqtype") %>%
+  mutate(type = "actual")
+
+cors.df2.sig <- lapply(cor.list.sig, function(x){
+  as.data.frame(x) %>%
+    rownames_to_column("line") %>%
+    pivot_longer(cols = starts_with("A"), names_to = "other_line", values_to = "rs") %>%
+    filter(line != other_line)
+}) %>%
+  bind_rows(.id = "seqtype") %>%
+  mutate(type = "actual_sig")
+```
+
+Half of each resulting matrix is redundant. The top half of the ribo matrix will be converted to the rnaseq matrix.
+```{r}
+# assign the riboseq cors to a new variable
+cor.combo <- cor.list$ds_log2foldchange_ribo
+
+#change the upper half to RNAseq datas cors
+cor.combo[upper.tri(cor.combo)] <- cor.list$ds_log2foldchange_rna[upper.tri(cor.list$ds_log2foldchange_rna)]
+
+#reshape it to a useful dataframe
+cors.df <- cor.combo %>%
+  as.data.frame() %>%
+  rownames_to_column("line") %>%
+  pivot_longer(cols = starts_with("A"), names_to = "other_line", values_to = "rs") %>%
+  filter(line != other_line) %>%
+  mutate(type = "actual")
+
+cors.df$line <- factor(cors.df$line, levels = mut.levels)
+
+cors.df$other_line <- factor(cors.df$other_line, levels = mut.levels)
+
+cors.df
+```
+
+#### Generate randomized fold changes matrices
+
+To show distributions of these correlations compared to a null distribution. To make a null distribution, randomize the fold changes in each column. 100 randomizations are generated for each seqtype.
+```{r}
+set.seed(1)
+
+randomized.cors <- all.data %>%                                                            # take all the data
+  filter(gene_type == "ECB" & line != "Ara+6") %>%                                         # remove ERCC and Ara+6
+  select(line, target_id, ds_log2foldchange_rna, ds_log2foldchange_ribo) %>%               # only retain those columns
+  pivot_longer(., cols = starts_with("ds_"), names_to = "seqtype", values_to = "l2fc") %>% # reshape data so it can be split
+  split(.$seqtype) %>%                                                                     # make one data frame per seqtype
+  map(function(x){
+    # restore the original data structure for a cor matrix
+    df1 <- x %>%
+      select(-seqtype) %>%
+      pivot_wider(names_from = line, values_from = l2fc)
+    
+    # make 100 randomizations and calculate cors based on that
+    lapply(1:100, function(y){                                                             # for 100 times
+      apply(df1[,2:ncol(df1)], 2, function(z){                                             # apply a func to df1, but only the cols with fold changes
+        sample(z, size = length(z), replace = FALSE)                                       # randomly shuffle the values in each column
+      }) %>%
+        cor(method = "spearman", use = "pairwise.complete.obs") %>%                        # generate a cor matrix from the now shuffled values
+        as.data.frame() %>%                                                                # make it a data frame, not matrix
+        rownames_to_column("line") %>%                                                     # put row names in a column
+        pivot_longer(cols = starts_with("A"), names_to = "other_line", values_to = "rs")   # reshape the data so its line, line being compared, cor
+    }) %>%
+      bind_rows() %>%                                                                      # bind all 100 randomizations results together
+      filter(line != other_line)                                                           # don't need to compare a line to itself
+  }) %>%
+  bind_rows(.id = "seqtype") %>%                                                           # bind the 100 from rnaseq and 100 from riboseq together
+  mutate(type = "random")                                                                  # add a col indicating these as the randomized changes
+
+randomized.cors
+```
+
+Then join the randomized cors to the actual cors and make the density plots
+```{r fig.width = 6, fig.height = 6}
+all.cors.df <- bind_rows(cors.df2, randomized.cors, cors.df2.sig)
+
+all.cors.df$seqtype <- factor(all.cors.df$seqtype, levels = c("ds_log2foldchange_rna", "ds_log2foldchange_ribo"))
+
+all.cors.df$type <- factor(all.cors.df$type, levels = c("random", "actual", "actual_sig"))
+
+c.fac.labs <- c("ds_log2foldchange_rna" = "RNA-seq",
+                "ds_log2foldchange_ribo" = "Ribo-seq")
+
+pc <- all.cors.df %>% 
+  filter(seqtype == "ds_log2foldchange_rna") %>% 
+  ggplot(., aes(rs, fill = type, color = type))+
+  geom_density(aes(y = ..scaled..), alpha = .5)+
+  geom_rug(alpha = .5)+
+  theme(panel.background = element_blank(),
+        axis.line = element_line(color = "black"),
+        text = element_text(size = 13),
+        legend.position = c(.5, .95),
+        legend.background = element_blank(),
+        legend.text = element_text(size = 8),
+        legend.key.size = unit(3.3 , "mm"),
+        legend.direction = "horizontal",
+        legend.spacing.x = unit(.8, "mm"))+
+  scale_x_continuous(limits = c(-.25, 1), breaks = c(0, .5, 1))+
+  scale_y_continuous(breaks = c(0, .5, 1), limits = c(0, 1.1))+
+  scale_color_manual(values = c("black", "orange3", "navy"), guide = FALSE)+
+  scale_fill_manual(values = c("black", "orange3", "navy"), name = NULL, labels = c("Randomized", "All genes", "Significant genes"))+
+  labs(x = expression(paste("Spearman's correlation of ", log[2], "(fc)", sep = "")),
+       y = "Frequency",
+       title = "C")+
+  facet_wrap(~seqtype, labeller = as_labeller(c.fac.labs))
+
+pc
+```
+
+A t-test to show that those are different
+```{r}
+all.cors.df %>%
+  compare_means(formula = rs ~ type, group.by = "seqtype", method = "t.test")
+```
+
+### Panel D
+
+Scatterplot showing relationship between ancestral TPM and fold change for sig genes and all genes. The black regression is for **all points, not just red** and the red is for just red.
+```{r fig.width = 4, fig.height = 3.5}
+# get the anc tpms and l2fcs for all and sig rna and riboseq genes separately
+d.rna.sig <- all.data %>%
+  filter(ds_padj_rna <= .01 & gene_type == "ECB") %>% 
+  select(line, target_id, anc_mean_tpm_rna, ds_log2foldchange_rna) %>%
+  rename("l2fc" = "ds_log2foldchange_rna",
+         "anc_tpm" = "anc_mean_tpm_rna")
+
+d.ribo.sig <- all.data %>%
+  filter(ds_padj_ribo <= .01 & gene_type == "ECB") %>% 
+  select(line, target_id, anc_mean_tpm_ribo, ds_log2foldchange_ribo) %>%
+  rename("l2fc" = "ds_log2foldchange_ribo",
+         "anc_tpm" = "anc_mean_tpm_ribo")
+
+d.rna.all <- all.data %>%
+  filter(gene_type == "ECB") %>% 
+  select(line, target_id, anc_mean_tpm_rna, ds_log2foldchange_rna) %>%
+  rename("l2fc" = "ds_log2foldchange_rna",
+         "anc_tpm" = "anc_mean_tpm_rna")
+
+d.ribo.all <- all.data %>%
+  filter(gene_type == "ECB") %>% 
+  select(line, target_id, anc_mean_tpm_ribo, ds_log2foldchange_ribo) %>%
+  rename("l2fc" = "ds_log2foldchange_ribo",
+         "anc_tpm" = "anc_mean_tpm_ribo")
+
+# put them all together
+ddf <- bind_rows("RNA-seq_all" = d.rna.all,
+          "RNA-seq_sig" = d.rna.sig,
+          "Ribo-seq_all" = d.ribo.all,
+          "Ribo-seq_sig" = d.ribo.sig,
+          .id = "d_type") %>%
+  separate(d_type, into = c("seqtype", "dtype"), sep = "_")
+
+# this allows us to not show non-significant points twice by allowing them to have an alpha of 0
+# but they still contribute to the regressions, they're just not drawn in black and red
+alpha.df <- ddf %>% 
+  group_by(seqtype, line, target_id) %>%
+  tally() %>% 
+  ungroup()
+
+ddf2 <- left_join(ddf, alpha.df) %>% 
+  mutate(alpha = ifelse(dtype == "all" & n ==2, "a", "b"))
+
+ddf2$seqtype <- factor(ddf2$seqtype, levels = c("RNA-seq", "Ribo-seq"))
+
+pd <- ddf2 %>%
+  filter(line == "Ara+1" & seqtype == "RNA-seq") %>% 
+  mutate(faclab = paste(line, seqtype)) %>% 
+  ggplot(., aes(anc_tpm, l2fc, color = dtype))+
+  geom_point(size = .5, aes(alpha = alpha))+
+  facet_wrap(~ faclab)+
+  scale_x_log10(limits = c(1e-3, 1e5),
+                labels = scales::trans_format("log10", scales::math_format(10^.x)),
+                breaks = c(1e-2, 1, 1e2, 1e4))+
+  scale_color_manual(values = c("black", "brown2"), guide = FALSE)+
+  theme_classic()+
+  theme(text = element_text(size = 13),
+        panel.grid = element_blank(),
+        strip.background = element_rect(fill = "grey90", color = NA))+
+  labs(x = "Mean ancestral TPM",
+       y = expression(paste(log[2], "(fold change)")),
+       title = "D")+
+  stat_cor(size = 4, label.x.npc = .001, label.y.npc = .1, p.accuracy = .01, r.accuracy = .01)+
+  scale_y_continuous(limits = c(-8, 8))+
+  scale_alpha_manual(values = c(0, 1), guide = FALSE)
+
+pd
+```
+
+### Panel E
+
+```{r}
+pe <- all.data %>% 
+  filter(ds_padj_rna <= .01) %>%
+  mutate(direc = ifelse(ds_log2foldchange_rna < 0, "down", "up"),
+         fac = "RNA-seq significant genes") %>%
+  group_by(line, direc, mutator, fac) %>%
+  tally() %>%
+  ungroup() %>%
+  ggplot(., aes(line, n, fill = direc))+
+  geom_col(position = position_dodge(), alpha = .9)+
+  scale_fill_manual(values = c("firebrick2", "dodgerblue2"), labels = c("Downregulated", "Upregulated"), name = NULL)+
+  theme_classic()+
+  theme(text = element_text(size = 13),
+        axis.text.y = element_text(color = mut.colors),
+        strip.background = element_rect(fill = "grey90", color = NA),
+        legend.background = element_blank(),
+        axis.text.x = element_text(color = mut.colors),
+        legend.position = c(.12, .9))+
+  facet_wrap(~fac)+
+  labs(x = NULL,
+       y = "Number of genes",
+       title = "E")
+
+pe
+```
+
+### Final figure
+
+```{r fig.width = 13, fig.height = 10}
+top <- (pa + plot_spacer()) + plot_layout(widths = c(.99, .01))
+
+bottom.right <- (pc | pd) / pe
+
+bottom.left <- pb
+
+bottom <- bottom.left | bottom.right
+
+(ff <- (top / bottom) + plot_layout(heights = c(.25, .75)))
+```
+
+```{r}
+ggsave(ff, filename = "../../figures/c_fig_2.pdf", width = 13, height = 10)
+
+ggsave(ff, filename = "../../figures/c_fig_2.png", width = 13, height = 10, dpi = 300)
+```
+
+```{r}
+sessionInfo()
+```
+

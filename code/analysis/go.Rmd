@@ -1,0 +1,177 @@
+---
+title: "GO analysis"
+output: 
+  html_document:
+    df_print: paged
+author: "John Favate"
+date: "`r Sys.time()`"
+---
+
+```{r}
+# Prevent printing of warnings and such in the HTML
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(org.EcK12.eg.db)
+library(topGO)
+```
+
+```{r}
+all.data <- read_csv("../../data_frames/all_data.csv") %>%
+  filter(gene_type == "ECB")
+```
+
+##topGO 
+
+Get the vectors needed for topGO. The vector itself is whats used to determine interesting genes, 1 if gene is of interest and 0 if it is not. The names of the vector are supposed to be the gene names. 
+```{r}
+all.down <- all.data %>%
+  mutate(padj = ifelse(deleted == TRUE, 1e-3, ds_padj_rna),          # add pvalue to genes with deletions
+         l2fc = ifelse(deleted == TRUE, -3, ds_log2foldchange_rna),  # add l2fc to genes with deletions
+         sig = ifelse(padj <= .01 & l2fc < 0, 1, 0)) %>%             # is this a sig down gene
+  dplyr::select(line, k12_name, sig, padj) %>%                       # only need these cols
+  filter(!is.na(padj) & !is.na(k12_name)) %>%                        # can't do anything with nameless genes
+  split(.$line) %>%
+  map(function(x){
+    # sort by increasing p value
+    df <- x %>%
+      arrange(padj)
+    
+    # vector of sig or not
+    ps <- df$sig
+    
+    # gene names as vector names
+    names(ps) <- df$k12_name
+    
+    # return a named vector
+    return(ps)
+  })
+
+# same but for upregulated genes
+all.up <- all.data %>%
+  mutate(padj = ifelse(deleted == TRUE, 1e-3, ds_padj_rna),
+         l2fc = ifelse(deleted == TRUE, -3, ds_log2foldchange_rna),
+         sig = ifelse(padj <= .01 & l2fc > 0, 1, 0)) %>%
+  dplyr::select(line, k12_name, sig, padj) %>%
+  filter(!is.na(padj) & !is.na(k12_name)) %>%
+  split(.$line) %>%
+  map(function(x){
+    df <- x %>%
+      arrange(padj)
+
+    ps <- df$sig
+
+    names(ps) <- df$k12_name
+
+    return(ps)
+  })
+```
+
+Function to pick significant genes
+```{r}
+selection <- function(x){x == 1}
+```
+
+```{r}
+ontologies <- c("BP", "MF", "CC")
+
+names(ontologies) <- ontologies
+
+up.df <- lapply(ontologies, function(x){
+  lapply(all.up, function(y){
+    # generate the go object
+    godata <- new("topGOdata",
+                  ontology = x,
+                  allGenes = y,
+                  geneSel = selection,
+                  annot = annFUN.GO2genes,
+                  GO2genes = annFUN.org(whichOnto = x, feasibleGenes = NULL, mapping = "org.EcK12.eg.db", ID = "symbol"),
+                  nodeSize = 5)
+    
+    # run fishers test
+    results.fisher <- runTest(godata, algorithm = "classic", statistic = "fisher")
+    
+    # run ks test
+    results.ks <- runTest(godata, algorithm = "classic", statistic = "ks")
+    
+    # generate a data frame from the results
+    go.table <- GenTable(godata, fisher = results.fisher, KS = results.ks, topNodes = 65)
+  }) %>%
+    bind_rows(.id = "line")
+}) %>%
+  bind_rows(.id = "ontology")
+```
+
+Same, but for downregulated genes
+```{r}
+down.df <- lapply(ontologies, function(x){
+  lapply(all.down, function(y){
+    # generate the go object
+    godata <- new("topGOdata",
+                  ontology = x,
+                  allGenes = y,
+                  geneSel = selection,
+                  annot = annFUN.GO2genes,
+                  GO2genes = annFUN.org(whichOnto = x, feasibleGenes = NULL, mapping = "org.EcK12.eg.db", ID = "symbol"),
+                  nodeSize = 5)
+    
+    # run fishers test
+    results.fisher <- runTest(godata, algorithm = "classic", statistic = "fisher")
+    
+    # run ks test
+    results.ks <- runTest(godata, algorithm = "classic", statistic = "ks")
+    
+    # generate a data frame from the results
+    go.table <- GenTable(godata, fisher = results.fisher, KS = results.ks, topNodes = 65)
+  }) %>%
+    bind_rows(.id = "line")
+}) %>%
+  bind_rows(.id = "ontology")
+
+go.df <- bind_rows("up" = up.df, "down" = down.df, .id = "direction")
+
+names(go.df) <- tolower(names(go.df)) %>%
+  str_replace_all(" ", "_")
+
+go.df
+```
+
+Save that
+```{r}
+write_csv(go.df, "../../data_frames/go_results.csv")
+```
+
+Graphs per ontology.
+```{r fig.width = 18, fig.height = 7}
+go.df <- read_csv("../../data_frames/go_results.csv")
+
+go.df %>%
+  split(.$ontology) %>%
+  map(function(x){
+    df <- x %>%
+      mutate(stars = ifelse(fisher <= .05, "*", ""))
+    
+    more.than.x <- df %>%
+      filter(fisher <= .05) %>%
+      group_by(go.id, ontology) %>%
+      tally() %>%
+      ungroup() %>%
+      filter(n >= 5) %>%
+      pull(go.id) %>%
+      unique()
+    
+    
+    df %>%
+      filter(go.id %in% more.than.x) %>%
+      ggplot(., aes(term, line, fill = direction, label = stars))+
+      geom_raster()+
+      geom_text()+
+      scale_fill_manual(values = c("firebrick3", "dodgerblue3"), guide = FALSE)+
+      facet_wrap(~ ontology)+
+      theme(axis.text.x = element_text(angle = 90, vjust = .5, hjust = 1))
+  })
+```
+
+pick top 5 in both dirs, supp is all 3 ontologies again with 5 in either (as many as possible)

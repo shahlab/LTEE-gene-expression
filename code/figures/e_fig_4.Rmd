@@ -1,0 +1,387 @@
+---
+title: "Figure 4"
+output: 
+  html_document:
+    df_print: paged
+author: "John Favate"
+date: "`r Sys.time()`"
+---
+
+<style type="text/css">
+.main-container {
+  max-width: 1500px;
+  margin-left: auto;
+  margin-right: auto;
+}
+</style>
+
+```{r}
+# Prevent printing of warnings and such in the HTML
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, fig.align = "center")
+```
+
+```{r}
+library(tidyverse)
+library(patchwork)
+library(ggpubr)
+library(ggpointdensity)
+```
+
+Read in the necessary data frames
+```{r}
+all.data <- read_csv("../../data_frames/all_data.csv")
+
+kdf <- read_csv("../../data_frames/kallisto_results.csv")
+```
+
+### Panel A
+
+Scatterplot to show correlation between RNAseq and riboseq. 
+```{r fig.width = 4, fig.height = 4}
+pa <- kdf %>%
+  filter(line == "Ara+1") %>%
+  group_by(seqtype, line, target_id) %>%
+  summarise(mean_tpm = mean(tpm, na.rm = TRUE)) %>%
+  ungroup() %>%
+  pivot_wider(names_from = seqtype, values_from = mean_tpm) %>%
+  filter(grepl("ECB", target_id)) %>%
+  ggplot(., aes(rna, ribo))+
+  geom_abline(aes(intercept = 0, slope = 1), linetype = 5)+
+  geom_pointdensity(size = 1)+
+  scale_x_log10(labels = scales::trans_format("log10", scales::math_format(10^.x)),
+                limits = c(1e-3, 1e5),
+                breaks = c(1e-2, 1e0, 1e2, 1e4))+
+  scale_y_log10(labels = scales::trans_format("log10", scales::math_format(10^.x)),
+                limits = c(1e-3, 1e5),
+                breaks = c(1e-2, 1e0, 1e2, 1e4))+
+  scale_color_viridis_c(option = "B", name = "Neighboring points", guide = FALSE)+
+  theme_classic()+
+  theme(text = element_text(size = 13),
+        strip.background = element_rect(color = NA, fill = "grey90"))+
+  facet_wrap(~ line, ncol = 7)+
+  labs(x = "RNA-seq TPM",
+       y = "Ribo-seq TPM",
+       title = "A")+
+  stat_cor(aes(label = ..r.label..))
+
+pa
+```
+
+### Panel B
+
+A bar plot showing n genes with sig translation changes per line
+```{r}
+# define the colors for the mutator lines
+mut.colors.b <- c("black", rep("black", 5), rep("firebrick3", 5))
+
+# and the lines themselves
+mut.levels <- all.data %>%
+  select(line, mutator) %>%
+  arrange(mutator, line) %>%
+  unique() %>%
+  pull(line)
+
+# find the number of significant riborex genes in each line
+bdf <- all.data %>%
+  group_by(line) %>%
+  tally(rr_sig == TRUE) %>% 
+  ungroup()
+
+# factor the lines in mutator order
+bdf$line <- factor(bdf$line, levels = mut.levels)
+
+# make the labels that are to go inside the bars on the graph
+labs <- all.data %>%
+  filter(rr_sig == TRUE) %>%
+  select(line, k12_name, rel_name) %>%
+  mutate(k12_name = ifelse(is.na(k12_name), rel_name, k12_name),
+         k12_name = str_remove_all(k12_name, "ECB_")) %>%
+  split(.$line) %>%
+  map(function(x){
+    # this makes the genes a vector of gene1, new line, gene2...
+    # so they stack on top of each other
+    genes <- x %>% pull(k12_name)
+    
+    genes <- genes[!is.na(genes)]
+    
+    str_c(genes, collapse = "\n")
+  }) %>%
+  enframe("line", "lab") %>%
+  unnest(lab)
+
+# the plot
+pb <- bdf %>%
+  left_join(., labs, by = "line") %>%
+  ggplot(., aes(line, n, label = lab))+
+  geom_col(fill = "grey80")+
+  geom_text(position = position_stack(vjust = .5), size = 3.5)+
+  theme(panel.background = element_blank(),
+        text = element_text(size = 13),
+        axis.ticks = element_blank(),
+        axis.text.x = element_text(color = mut.colors.b),
+        axis.line = element_line(color = "black"))+
+  scale_y_continuous(breaks = c(0, 3, 6, 9))+
+  labs(x = NULL,
+       y = "Genes with significantly different\nribosomal densities",
+       title = "B")
+
+pb
+```
+
+```{r}
+all.data %>% 
+  filter(rr_sig == TRUE) %>% 
+  pull(target_id) %>% 
+  unique()
+```
+
+
+### Panel C
+
+Violin plots of all AA vs stop codons. 
+```{r}
+# read in the data frame
+genome.wide.codon.density <- read_csv("../../data_frames/genome_wide_codon_densites_100reads-up.csv")
+
+# find density for the evolved lines
+evos <- genome.wide.codon.density %>%
+  group_by(codon, line, amino_acid) %>%
+  summarise(mean_dens_sans_zero = mean(avg_ribo_n),
+            var_dens_sans_zero = var(avg_ribo_n),
+            std_dens_sans_zero = sd(avg_ribo_n),
+            mean_dens_with_zero = mean(avg_ribo_n_w_0),
+            var_dens_with_zero = var(avg_ribo_n_w_0),
+            std_dens_with_zero = sd(avg_ribo_n_w_0)) %>%
+  ungroup() %>%
+  filter(!(grepl("REL", line)))
+
+# find density for the ancestors
+ancs <- genome.wide.codon.density %>%
+  filter(grepl("REL", line)) %>%
+  select(-line, -replicate) %>%
+  group_by(codon, amino_acid) %>%
+  summarise(mean_dens_sans_zero = mean(avg_ribo_n),
+            var_dens_sans_zero = var(avg_ribo_n),
+            std_dens_sans_zero = sd(avg_ribo_n),
+            mean_dens_with_zero = mean(avg_ribo_n_w_0),
+            var_dens_with_zero = var(avg_ribo_n_w_0),
+            std_dens_with_zero = sd(avg_ribo_n_w_0)) %>%
+  ungroup()
+
+# join them
+joined.dens.df <- left_join(evos, ancs, by = c("codon", "amino_acid"), suffix = c("_evo", "_anc"))
+
+head(joined.dens.df)
+```
+
+The plot
+```{r}
+# calculate ratio to ancestor, and make new x labels
+cdf <- joined.dens.df %>%
+  mutate(ratio = mean_dens_with_zero_evo / mean_dens_with_zero_anc,
+         newlab = paste("(", amino_acid, ")", " ", codon, sep = "")) %>%
+  filter(codon != "A")
+
+# pick a seed so the dots always end up in the same spot
+set.seed(1)
+
+# plot
+pc <- cdf %>%
+  mutate(is_stop = ifelse(amino_acid == "*", "stop", "aa")) %>%
+  ggplot(., aes(is_stop, log2(ratio), color = is_stop, fill = is_stop))+
+  geom_hline(aes(yintercept = 0), linetype = 5)+
+  geom_violin(alpha = .5)+
+  geom_jitter(height = 0, width = .2, size  = 1)+
+  theme(panel.grid.minor = element_blank(),
+        text = element_text(size = 13))+
+  theme(panel.background = element_blank(),
+        text = element_text(size = 13),
+        axis.line = element_line(color = "black"))+
+  labs(x = NULL,
+       y = expression(paste(log[2], "(fold-change in ribosome density)")),
+       title = "C")+
+  scale_x_discrete(labels = c("Amino acid codons", "Stop codons"))+
+  scale_fill_manual(values = c("steelblue", "orange3"), guide = FALSE)+
+  scale_color_manual(values = c("steelblue", "orange3"), guide = FALSE)+
+  stat_compare_means(comparisons = list(c("aa", "stop")), aes(label = ..p.format..), method = "t.test")+
+  scale_y_continuous(limits = c(-1.1, 1.1))
+
+pc
+```
+
+### Panel D
+
+Termination factors fold changes
+```{r}
+# these are termination factors
+prots <- c("ECB_01186", "ECB_04250", "ECB_00170", "ECB_02723", "ECB_03191", "ECB_01187", "ECB_00231", "ECB_00230", "ECB_04017")
+
+# find them, and add a facet title
+ddf <- all.data %>%
+  filter(target_id %in% prots) %>%
+  mutate(seqtype = "Termination factors")
+
+d.rna <- ddf %>%
+  select(line, target_id, ds_log2foldchange_rna, ds_padj_rna) %>%
+  dplyr::rename("l2fc" = "ds_log2foldchange_rna", "padj" = "ds_padj_rna")
+
+d.ribo <- ddf %>%
+  select(line, target_id, ds_log2foldchange_ribo, ds_padj_ribo) %>%
+  dplyr::rename("l2fc" = "ds_log2foldchange_ribo", "padj" = "ds_padj_ribo")
+
+set.seed(1)
+
+pd <- bind_rows("RNA-seq" = d.rna, "Ribo-seq" = d.ribo, .id = "seqtype") %>%
+  mutate(sig = ifelse(is.na(padj) | padj > .01, FALSE, TRUE),
+         seqtype = factor(seqtype, levels = c("RNA-seq", "Ribo-seq")),
+         facetz = "Termination factors") %>%
+  ggplot(., aes(seqtype, l2fc, fill = seqtype, color = seqtype))+
+  geom_hline(aes(yintercept = 0), linetype = 5)+
+  geom_jitter(height = 0, width = .2, size = 1)+
+  geom_violin(alpha = .5)+
+  theme(text = element_text(size= 13),
+        panel.background = element_blank(),
+        panel.grid = element_blank(),
+        axis.line = element_line(color = "black"))+
+  labs(x = NULL,
+       y = expression(paste(log[2], "(fold-change)")),
+       title = "D")+
+  facet_wrap(~facetz)+
+  scale_y_continuous(limits = c(-3.2, 3.2))+
+  scale_fill_discrete(guide = FALSE)+
+  scale_color_discrete(guide = FALSE)
+
+pd
+```
+
+### Panel E
+
+Codon heatmap. Load and shape the codon data.
+```{r}
+# get the evovled lines density
+evos <- genome.wide.codon.density %>%
+  group_by(codon, line, amino_acid) %>%
+  summarise(mean_dens_sans_zero = mean(avg_ribo_n),
+            var_dens_sans_zero = var(avg_ribo_n),
+            std_dens_sans_zero = sd(avg_ribo_n),
+            mean_dens_with_zero = mean(avg_ribo_n_w_0),
+            var_dens_with_zero = var(avg_ribo_n_w_0),
+            std_dens_with_zero = sd(avg_ribo_n_w_0)) %>%
+  ungroup() %>%
+  filter(!(grepl("REL", line)))
+
+# get the ancestral densities
+ancs <- genome.wide.codon.density %>%
+  filter(grepl("REL", line)) %>%
+  select(-line, -replicate) %>%
+  group_by(codon, amino_acid) %>%
+  summarise(mean_dens_sans_zero = mean(avg_ribo_n),
+            var_dens_sans_zero = var(avg_ribo_n),
+            std_dens_sans_zero = sd(avg_ribo_n),
+            mean_dens_with_zero = mean(avg_ribo_n_w_0),
+            var_dens_with_zero = var(avg_ribo_n_w_0),
+            std_dens_with_zero = sd(avg_ribo_n_w_0)) %>%
+  ungroup()
+
+# join them
+joined.dens.df <- left_join(evos, ancs, by = c("codon", "amino_acid"), suffix = c("_evo", "_anc"))
+
+head(joined.dens.df)
+```
+
+Mutator order for the lines
+```{r}
+mut.levels <- all.data %>%
+  select(line, mutator) %>%
+  arrange(mutator, line) %>%
+  unique() %>%
+  pull(line)
+
+mut.colors.b <- c("black", rep("black", 5), rep("firebrick3", 5))
+```
+
+Create the data frame necessary for the plot
+```{r}
+# calculate ratios and create new x labs
+rdf <- joined.dens.df %>%
+  mutate(ratio = mean_dens_with_zero_evo / mean_dens_with_zero_anc,
+         newlab = paste("(", amino_acid, ")", " ", codon, sep = ""))
+
+# find mean ratios for AA for ordering purposes
+mean.rat <- rdf %>%
+  group_by(amino_acid) %>%
+  summarise(mean_ratio = mean(ratio)) %>%
+  ungroup()
+
+# this is the x axis order
+codon.levels <- left_join(rdf, mean.rat, by = "amino_acid") %>%
+  arrange(mean_ratio) %>%
+  pull(newlab) %>%
+  unique()
+
+# apply the factor levels
+rdf$newlab <- factor(rdf$newlab, levels = codon.levels)
+
+rdf$line <- factor(rdf$line, levels = mut.levels)
+```
+
+Generate the colors needed for the codons on the x axis
+```{r}
+# color vector
+my.colors <- c("black","#a0504e","#5bb748","#9856c9","#adb839","#5e6ccc","#d59b34","#de6fd2","#5fbc85","#c14092","#3f7c44","#d13c61","#3fbfbc","#cd5632","#5e95cf","#90a452","#c290d5","#7b6c27","#90578d","#cd8e5a","#e48197")
+
+# get a vector that shows how many codons code for an AA
+codon.to.repeat <- left_join(rdf, mean.rat, by = "amino_acid") %>%
+  arrange(mean_ratio) %>%
+  select(amino_acid, newlab) %>%
+  unique() %>%
+  group_by(amino_acid) %>%
+  tally() %>%
+  left_join(., mean.rat, by = "amino_acid") %>%
+  arrange(mean_ratio) %>%
+  pull(n)
+
+all.my.colors <- sapply(1:21, function(x){
+  rep(my.colors[x], each = codon.to.repeat[x])
+}) %>%
+  unlist()
+```
+
+The plot
+```{r fig.width = 16, fig.height = 4}
+pe <- rdf %>%
+  ggplot(., aes(newlab, line, fill = log2(ratio)))+
+  geom_raster()+
+  scale_fill_gradient2(midpoint = 0, 
+                       breaks = c(-1.4, -.7, 0, .7, 1.4), 
+                       labels = c(-1.4, "", 0, "", 1.4),
+                       name = expression(paste(log[2], "(fold-change in ribosome density)", sep = "")), 
+                       high = "dodgerblue2", low = "firebrick2", 
+                       limits = c(-1.4, 1.4),
+                       guide = guide_colorbar(ticks.colour = "black"))+
+  theme(axis.text.x = element_text(angle = 60, color = all.my.colors, hjust = 1, vjust = 1),
+        text = element_text(size = 13),
+        axis.text.y = element_text(color = mut.colors.b),
+        panel.background = element_blank(),
+        legend.position = "bottom")+
+  labs(x = NULL, y = NULL, title = "E")
+
+pe
+```
+
+```{r fig.width = 15, fig.height = 8}
+top <- (pa | pb | pc | pd) + plot_layout(widths = c(.2, .4, .2, .2))
+
+(ff <- top / pe)
+```
+
+```{r}
+ggsave(ff, filename = "../../figures/e_fig_4.pdf", width = 15, height = 8)
+
+ggsave(ff, filename = "../../figures/e_fig_4.png", dpi = 300, width = 15, height = 8)
+```
+
+```{r}
+sessionInfo()
+```
+
