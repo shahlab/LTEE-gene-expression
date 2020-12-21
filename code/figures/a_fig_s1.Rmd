@@ -27,7 +27,7 @@ library(patchwork)
 
 Load the kallisto results, change some names for labeling purposes, and factor some columns
 ```{r}
-kdf <- read_csv("../../data_frames/kallisto_results.csv") %>% 
+kdf <- read_csv("../../data_frames/table_s1_read_counts.csv") %>% 
   unite("sample", c(repl, seqtype), remove = FALSE)
 
 kdf$seqtype <- gsub("rna", "RNA-seq", kdf$seqtype) %>% 
@@ -75,7 +75,7 @@ pa
 
 Read in the data frame.
 ```{r}
-nt.df <- read_csv("../../data_frames/three_nt_periodicity.csv")
+nt.df <- read_csv("../../data_frames/table_s2_three_nt_periodicity.csv")
 ```
 
 ```{r fig.width = 10, fig.height = 3.5}

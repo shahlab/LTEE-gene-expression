@@ -1,0 +1,34 @@
+An easier way to prep for packrat is to simply find all of the library statements in all of the Rmds. This bash code does that.
+```{bash}
+for file in code/*/*.Rmd; do # for each of the Rmd files
+  egrep "library\(" $file    # find lines that contain library(
+done | sort | uniq           # find only unique entries
+```
+
+You can simply copy and paste these into a chunk and use packrat on this Rmd
+```{r}
+library(Biostrings)
+library(broom)
+library(clusterProfiler)
+library(corrr)
+library(DESeq2)
+library(feather)
+library(GenomicAlignments)
+library(ggforce)
+library(ggpointdensity)
+library(ggpubr)
+library(ggrepel)
+library(ggridges)
+library(grid)
+library(gridExtra)
+library(multitaper)
+library(org.EcK12.eg.db)
+library(parallel)
+library(patchwork)
+library(png)
+library(riborex)
+library(rtracklayer)
+library(tidyverse)
+library(topGO)
+```
+

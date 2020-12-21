@@ -25,15 +25,15 @@ ecbs <- read_csv("../../data_frames/all_data.csv") %>% # read in the combined da
   unique()
 
 # the kallisto results, only need ERCCs and e coli protein genes and select columns
-kdf <- read_csv("../../data_frames/kallisto_results.csv") %>% 
+kdf <- read_csv("../../data_frames/table_s1_read_counts.csv") %>% 
   filter(target_id %in% ecbs) %>% 
   select(line, repl, target_id, tpm, seqtype)
   
 # details of the ERCC controls and how much was added to each sample, their TPMs, etc
-ercc.per.sample <- read_csv("../../data_frames/ercc_molecules_per_sample.csv")
+ercc.per.sample <- read_csv("../../data_frames/table_s5_ercc_molecules_per_sample.csv")
 
 # the colony counts per sample
-col.counts <- read_csv("../../data_frames/col_counts.csv")
+col.counts <- read_csv("../../data_frames/table_s4_colony_counts.csv")
 ```   
 
 ### Modeling
@@ -110,7 +110,7 @@ head(kdf3)
 
 Save it
 ```{r}
-write_csv(kdf3, "../../data_frames/molecules_per_cfu.csv")
+write_csv(kdf3, "../../data_frames/table_s6_mRNAs_per_cfu.csv")
 ```
 
 ```{r}

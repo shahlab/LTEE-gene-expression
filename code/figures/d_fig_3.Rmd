@@ -27,7 +27,7 @@ library(ggridges)
 
 all.data <- read_csv("../../data_frames/all_data.csv")
 
-mutations <- read_csv("../../data_frames/LTEE-Ecoli-data 2020-05-04 15_18_48.csv")%>%
+mutations <- read_csv("../../data_frames/table_s8_mutations.csv")%>%
   mutate(clone_id = str_remove(strain, "REL")) %>%
   filter(population != "Ara+6")
 
@@ -42,8 +42,8 @@ my.mutations <- mutations %>%
 Number of genes that have a SNP in N lines 
 ```{r}
 adf <- my.mutations %>% 
-  filter(type == "SNP" & !grepl("intergenic", gene_position)) %>% 
-  group_by(gene_name, population) %>% # collapse multiple mutations in same gene in one line to one row
+  filter(type == "SNP" & !grepl("intergenic", gene_position) & mutator_status == "non-mutator") %>% 
+  group_by(gene_name, population, mutator_status) %>% # collapse multiple mutations in same gene in one line to one row
   tally() %>% 
   ungroup() %>% 
   group_by(gene_name) %>% # count the number of rows per gene, i.e. n lines with muts
@@ -54,13 +54,13 @@ pa <- adf %>%
   ggplot(., aes(n))+
   geom_bar()+
   geom_text(stat='count', aes(label=..count..), vjust = -.1)+
-  scale_x_continuous(breaks = 1:11, limits = c(.5, 11))+
+  scale_x_continuous(limits = c(.5,6.5), breaks = 1:6)+
   theme_classic()+
   theme(text = element_text(size = 13))+
-  labs(x = "Number of lines in which a\ngene has a SNP",
+  labs(x = "Number of non-mutator lines\nin which a gene has a SNP",
        y = "Count",
        title = "A")+
-  scale_y_continuous(limits = c(0, 1500))
+  scale_y_continuous()
 
 pa
 ```

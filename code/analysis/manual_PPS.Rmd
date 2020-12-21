@@ -214,7 +214,13 @@ Join those two dfs rowwise, the NAs in iteration column for the real data have t
   left_join(., path.trans, by = "pathway") %>%
    replace_na(replace = list(iteration = "real")))
 ```
+
 Save it.
 ```{r}
-write_csv(pps.df, "../../data_frames/pps_scores.csv")
+write_csv(pps.df, "../../data_frames/table_s12_pps_scores.csv")
 ```
+
+```{r}
+sessionInfo()
+```
+

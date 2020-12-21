@@ -192,7 +192,7 @@ genome.wide.codon.density <- codon.density.per.gene.df %>%
             avg_ribo_n_w_0 = mean(normalized_reads_per_gene_with_zero)) %>%
   ungroup()
 
-write_csv(genome.wide.codon.density, "../../data_frames/genome_wide_codon_densites_100reads-up.csv")
+write_csv(genome.wide.codon.density, "../../data_frames/table_s10_genome_wide_codon_densities.csv")
 
 head(genome.wide.codon.density)
 ```

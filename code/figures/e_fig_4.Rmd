@@ -31,7 +31,7 @@ Read in the necessary data frames
 ```{r}
 all.data <- read_csv("../../data_frames/all_data.csv")
 
-kdf <- read_csv("../../data_frames/kallisto_results.csv")
+kdf <- read_csv("../../data_frames/table_s1_read_counts.csv")
 ```
 
 ### Panel A
@@ -141,7 +141,7 @@ all.data %>%
 Violin plots of all AA vs stop codons. 
 ```{r}
 # read in the data frame
-genome.wide.codon.density <- read_csv("../../data_frames/genome_wide_codon_densites_100reads-up.csv")
+genome.wide.codon.density <- read_csv("../../data_frames/table_s10_genome_wide_codon_densities.csv")
 
 # find density for the evolved lines
 evos <- genome.wide.codon.density %>%

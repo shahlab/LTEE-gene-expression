@@ -42,7 +42,7 @@ ins.elements <- bdf %>%
 
 ```{r}
 # load the kallisto results and reshape it slightly, filter removes ERCC controls tRNAs, viruses
-kdf <- read_csv("../../data_frames/kallisto_results.csv") %>% 
+kdf <- read_csv("../../data_frames/table_s1_read_counts.csv") %>% 
   select(repl, seqtype, line, target_id, est_counts) %>% 
   unite("sample", c(seqtype, line, repl), sep = "_") %>% 
   filter(grepl("ECB_", target_id) & !(target_id %in% ins.elements))
@@ -142,7 +142,7 @@ head(deseq.df3)
 
 Save it
 ```{r}
-write_csv(deseq.df3, "../../data_frames/deseq_results.csv")
+write_csv(deseq.df3, "../../data_frames/table_s7_fold-changes.csv")
 ```
 
 ```{r}

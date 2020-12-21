@@ -21,10 +21,9 @@ library(patchwork)
 ```
 Read in the data frames. 
 ```{r}
-all.data <- read_csv("../../data_frames/all_data.csv") %>%
-  filter(line != "Ara+6")
+all.data <- read_csv("../../data_frames/all_data.csv")
 
-kdf <- read_csv("../../data_frames/kallisto_results.csv")
+kdf <- read_csv("../../data_frames/table_s1_read_counts.csv")
 ```
 
 ### Panel A

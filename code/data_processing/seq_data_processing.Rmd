@@ -1,5 +1,5 @@
 ---
-title: "Data processing"
+title: "Sequencing data processing"
 output: 
   html_document:
     df_print: paged
@@ -137,7 +137,7 @@ done
 
 ### in silico rRNA depeletion
 
-This is done by mapping to an rRNA index and retaining unmapped reads. rRNA index for e coli:
+This is done by mapping to an rRNA index and retaining unmapped reads. make an rRNA index for e coli:
 ```{bash}
 hisat2-build -p 1 /data/riboseq/Supp/seqs/K12/ecoli_rrna.fa ../../alignment/hisat2/indices/ecoli_rrna
 ```
@@ -171,3 +171,8 @@ done
 ```
 
 After this step, the files have been completely processed and are ready for actual alignment. 
+
+```{r eval = TRUE}
+sessionInfo()
+```
+

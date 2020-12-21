@@ -109,7 +109,7 @@ final.df$line <- str_replace(final.df$line, "P", "+") %>%
   str_replace("M", "-") %>% 
   str_replace("AraR", "REL60")
 
-write_csv(final.df, "../../data_frames/kallisto_results.csv")
+write_csv(final.df, "../../data_frames/table_s1_read_counts.csv")
 
 final.df
 ```

@@ -26,8 +26,7 @@ library(patchwork)
 library(ggpubr)
 library(ggridges)
 
-all.data <- read_csv("../../data_frames/all_data.csv") %>%
-  filter(line != "Ara+6")
+all.data <- read_csv("../../data_frames/all_data.csv")
 ```
 
 Set line order and colors for axis.

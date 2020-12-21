@@ -88,5 +88,8 @@ for file in ../../seqdata/6-rrna_depleted/*.fq.gz; do
 done
 ```
 
+```{r eval = TRUE}
+sessionInfo()
+```
 
 

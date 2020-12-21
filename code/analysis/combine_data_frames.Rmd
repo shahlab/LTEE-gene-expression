@@ -75,7 +75,7 @@ head(b.df)
 
 The aim is to show for each row (which is a single gene in a single line) the counts and TPMs for replicates, the mean of those, the counts and TPMs in the 4 ancestral replicates, the average of those, for each seqtype. Surprisingly, this is easier done that said.
 ```{r}
-evo.kdf <- read_csv("../../data_frames/kallisto_results.csv") %>%                  # read the df in
+evo.kdf <- read_csv("../../data_frames/table_s1_read_counts.csv") %>%              # read the df in
   filter(grepl("Ara", line)) %>%                                                   # only want evo for this part
   select(-length, -eff_length) %>%                                                 # remove these columns
   pivot_wider(names_from = c(repl, seqtype), values_from = c(est_counts, tpm)) %>% # reshape to a wide format
@@ -89,7 +89,7 @@ head(evo.kdf)
 
 Now for the ancestors. One data frame that contains the individuals
 ```{r}
-anc.reps <- read_csv("../../data_frames/kallisto_results.csv") %>%
+anc.reps <- read_csv("../../data_frames/table_s1_read_counts.csv") %>%
   filter(!(grepl("Ara", line))) %>%
   select(-length, -eff_length) %>% 
   pivot_wider(names_from = c(repl, line, seqtype), values_from = c(est_counts, tpm))
@@ -99,7 +99,7 @@ head(anc.reps)
 
 Then one with the means
 ```{r}
-anc.means <- read_csv("../../data_frames/kallisto_results.csv") %>%
+anc.means <- read_csv("../../data_frames/table_s1_read_counts.csv") %>%
   filter(!(grepl("Ara", line))) %>%
   select(-length, -eff_length) %>% 
   group_by(seqtype, target_id) %>% 
@@ -123,7 +123,7 @@ head(kdf2)
 
 Again, we want a data frame in wide as opposed to long format, this is easily accomplished with `pivot_wider`. Add "ds_" as a prefix to names beacuse the riborex results have the same column names
 ```{r}
-deseqdf <- read_csv("../../data_frames/deseq_results.csv") %>% 
+deseqdf <- read_csv("../../data_frames/table_s7_fold-changes.csv") %>% 
   pivot_wider(names_from = seqtype, values_from = c(where(is.numeric), sig)) %>% 
   rename_if(is.numeric, ~paste0("ds_", .)) %>% 
   rename("ds_sig_ribo" = "sig_ribo", "ds_sig_rna" = "sig_rna")
@@ -135,7 +135,7 @@ head(deseqdf)
 
 Do the same thing as with the DESeq results, placing "rr_" in front instead of "ds_"
 ```{r}
-rrdf <- read_csv("../../data_frames/riborex_results.csv") %>% 
+rrdf <- read_csv("../../data_frames/table_s9_riborex_results.csv") %>% 
   rename_if(is.numeric, ~paste0("rr_", .)) %>% 
   rename("rr_sig" = "sig") %>% 
   select(-deleted) # deletions will come the the DESeq df, don't need them here too
@@ -170,6 +170,7 @@ names(big.df2) <- tolower(names(big.df2))
 
 head(big.df2)
 ```
+
 Those are all phage proteins.
 ```{r}
 big.df2 %>% 
@@ -177,8 +178,12 @@ big.df2 %>%
   pull(rel_product) %>% 
   unique()
 ```
-
 Save it
 ```{r}
 write_csv(big.df2, "../../data_frames/all_data.csv")
 ```
+
+```{r}
+sessionInfo()
+```
+

@@ -71,7 +71,7 @@ df1$line <- gsub("M", "-", df1$line) %>%
   gsub("AraR", "REL0", .)
 
 # save it
-write_csv(df1, "../../data_frames/three_nt_periodicity.csv")
+write_csv(df1, "../../data_frames/table_s2_three_nt_periodicity.csv")
 ```
 
 ```{r}

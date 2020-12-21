@@ -17,7 +17,7 @@ A single large figure where the top 5 up and down categories from each ontology 
 library(tidyverse)
 library(patchwork)
 
-go.df <- read_csv("../../data_frames/go_results.csv")
+go.df <- read_csv("../../data_frames/table_s13_go_results.csv")
 
 # mutator order and levels
 mut.levels <- read_csv("../../data_frames/all_data.csv") %>%
@@ -73,10 +73,10 @@ term.df.list <- lapply(cat.df, function(x){
 Then the plot
 ```{r}
 fac.labs <- c("up" = "Upregulated",
-                "down" = "Downregulated",
-                "CC" = "Cellular Compartment",
-                "BP" = "Biological process",
-                "MF" = "Molecular function")
+              "down" = "Downregulated",
+              "CC" = "Cellular Compartment",
+              "BP" = "Biological process",
+              "MF" = "Molecular function")
 
 p.list <- lapply(term.df.list, function(x){
   ggplot(x, aes(line, term, fill = -log10(fisher)))+

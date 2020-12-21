@@ -28,9 +28,9 @@ library(grid)
 library(corrr)
 library(ggpubr)
 
-pps.df <- read_csv("../../data_frames/pps_scores.csv")
+pps.df <- read_csv("../../data_frames/table_s12_pps_scores.csv")
 
-kegg.df <- read_csv("../../data_frames/kegg_results.csv")
+kegg.df <- read_csv("../../data_frames/table_s11_kegg_results.csv")
 
 all.data <- read_csv("../../data_frames/all_data.csv")
 ```
@@ -49,13 +49,6 @@ mut.colors <- c("black", rep("black", 5), rep("firebrick3", 5))
 ```
 
 ### Panel A
-
-Heatmap of KEGG scores
-```{r}
-kegg.df <- read_csv("../../data_frames/kegg_results.csv")
-
-head(kegg.df)
-```
 
 We would like to display the top 5 up and downregulated categories, with top being determined by the mean enrichment score across the lines but only for categories that are significant in at least 4 lines. Find all the categorie that are significant in at least 4 lines.
 ```{r}
@@ -122,11 +115,6 @@ pa
 ```
 
 ### Panel B
-
-The PPS section, load the PPS data frame
-```{r}
-pps.df <- read_csv("../../data_frames/pps_scores.csv")
-```
 
 Remove some odd characters
 ```{r}

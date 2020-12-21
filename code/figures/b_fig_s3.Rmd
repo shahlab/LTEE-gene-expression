@@ -31,7 +31,7 @@ library(patchwork)
 
 Linear models for each of the samples
 ```{r}
-ercc.df <- read_csv("../../data_frames/ercc_molecules_per_sample.csv")
+ercc.df <- read_csv("../../data_frames/table_s5_ercc_molecules_per_sample.csv")
 
 head(ercc.df)
 ```
@@ -64,7 +64,7 @@ pa
 
 Scatterplot of changes to absolute amounts for all samples
 ```{r}
-mols.per.cfu.df <- read_csv("../../data_frames/molecules_per_cfu.csv")
+mols.per.cfu.df <- read_csv("../../data_frames/table_s6_mRNAs_per_cfu.csv")
 
 head(mols.per.cfu.df)
 ```

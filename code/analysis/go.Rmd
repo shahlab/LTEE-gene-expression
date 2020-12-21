@@ -140,38 +140,10 @@ go.df
 
 Save that
 ```{r}
-write_csv(go.df, "../../data_frames/go_results.csv")
+write_csv(go.df, "../../data_frames/table_s13_go_results.csv")
 ```
 
-Graphs per ontology.
-```{r fig.width = 18, fig.height = 7}
-go.df <- read_csv("../../data_frames/go_results.csv")
-
-go.df %>%
-  split(.$ontology) %>%
-  map(function(x){
-    df <- x %>%
-      mutate(stars = ifelse(fisher <= .05, "*", ""))
-    
-    more.than.x <- df %>%
-      filter(fisher <= .05) %>%
-      group_by(go.id, ontology) %>%
-      tally() %>%
-      ungroup() %>%
-      filter(n >= 5) %>%
-      pull(go.id) %>%
-      unique()
-    
-    
-    df %>%
-      filter(go.id %in% more.than.x) %>%
-      ggplot(., aes(term, line, fill = direction, label = stars))+
-      geom_raster()+
-      geom_text()+
-      scale_fill_manual(values = c("firebrick3", "dodgerblue3"), guide = FALSE)+
-      facet_wrap(~ ontology)+
-      theme(axis.text.x = element_text(angle = 90, vjust = .5, hjust = 1))
-  })
+```{r}
+sessionInfo()
 ```
 
-pick top 5 in both dirs, supp is all 3 ontologies again with 5 in either (as many as possible)

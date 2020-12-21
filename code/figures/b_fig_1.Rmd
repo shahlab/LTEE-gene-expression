@@ -50,7 +50,7 @@ pa
 
 Boxplot of cell surface area. Load the size data and convert the pixel units to um.
 ```{r}
-size.df <- read_csv("../../data_frames/microscopy_data.csv") %>%
+size.df <- read_csv("../../data_frames/table_s3_cell_size.csv") %>%
   filter(line != "Ara+6") %>%
   mutate(length.in.um = SHAPE.length * .129,
          width.in.um = SHAPE.width * .129,
@@ -127,7 +127,7 @@ png.b <- rasterGrob(readPNG("../../figures/b_bac_images.png"), interpolate = TRU
 
 Example linear model showing relationship between predicted number of ERCC added and it's TPM in the sample.
 ```{r}
-ercc.df <- read_csv("../../data_frames/ercc_molecules_per_sample.csv")
+ercc.df <- read_csv("../../data_frames/table_s5_ercc_molecules_per_sample.csv")
 
 head(ercc.df)
 ```
@@ -163,7 +163,7 @@ pc
 
 Scatterplot of changes in absolute amounts. 
 ```{r}
-mols.per.cfu.df <- read_csv("../../data_frames/molecules_per_cfu.csv")
+mols.per.cfu.df <- read_csv("../../data_frames/table_s6_mRNAs_per_cfu.csv")
 
 head(mols.per.cfu.df)
 ```

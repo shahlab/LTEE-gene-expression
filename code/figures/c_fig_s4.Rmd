@@ -30,7 +30,7 @@ library(patchwork)
 
 all.data <- read_csv("../../data_frames/all_data.csv")
 
-kdf <- read_csv("../../data_frames/kallisto_results.csv")
+kdf <- read_csv("../../data_frames/table_s1_read_counts.csv")
 ```
 
 Line order and colors for axis.

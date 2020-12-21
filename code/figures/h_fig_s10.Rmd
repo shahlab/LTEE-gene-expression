@@ -23,7 +23,7 @@ all.data <- read_csv("../../data_frames/all_data.csv")
 
 gff <- readGFFAsGRanges("/data/john/projects/1ltee/gffs/AraR6.gff")
 
-mutations <- read_csv("../../data_frames/LTEE-Ecoli-data 2020-05-04 15_18_48.csv")%>%
+mutations <- read_csv("../../data_frames/table_s8_mutations.csv")%>%
   mutate(clone_id = str_remove(strain, "REL")) %>%
   filter(population != "Ara+6")
 

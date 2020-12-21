@@ -44,7 +44,7 @@ mut.colors <- c("black", rep("black", 5), rep("firebrick3", 5))
 Read in the required items.
 ```{r}
 # the list of mutations, and the specific clones for oru mutations
-mutations <- read_csv("../../data_frames/LTEE-Ecoli-data 2020-05-04 15_18_48.csv")%>%
+mutations <- read_csv("../../data_frames/table_s8_mutations.csv")%>%
   mutate(clone_id = str_remove(strain, "REL")) %>%
   filter(population != "Ara+6")
 
