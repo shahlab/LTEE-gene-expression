@@ -199,13 +199,12 @@ Correlation between size and molecules per cfu. Get median/mean sizes
   group_by(line) %>%
   summarise(median_area = median(area.in.um, na.rm = TRUE),
             mean_area = mean(area.in.um)) %>%
-  ungroup() %>% 
-   mutate(line = gsub("REL[67]", "REL", line)))
+  ungroup())
 ```
 
 Get total RNA per cfu for each line/rep
 ```{r}
-mols.per.cfu.df <- read_csv("../../data_frames/molecules_per_trans_all_genes.csv")
+mols.per.cfu.df <- read_csv("../../data_frames/table_s6_mRNAs_per_cfu.csv")
 
 mols.cfu.per.line <- mols.per.cfu.df %>%
   group_by(repl, line, seqtype) %>%
@@ -224,7 +223,6 @@ all.data.df <- left_join(avg.sizes, mols.cfu.per.line, by = "line") %>%
 For without filaments, we use the medians from all the data and remove entries that are larger than 3x the median in a line respective manner, then we recalculate the mean and median with those too large (presumably filamentous) entries removed. This doesn't alter the mean or median much, it seems. 
 ```{r}
 small.avg.df <- size.df %>%
-  mutate(line = gsub("REL6", "REL", line)) %>%
   left_join(., avg.sizes, by = "line") %>%
   mutate(too_big = ifelse(area.in.um > (3*median_area), TRUE, FALSE)) %>%
   filter(too_big == FALSE) %>%
