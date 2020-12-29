@@ -290,8 +290,7 @@ Correlation between size and molecules per cfu. Get median/mean sizes
   group_by(line) %>%
   summarise(median_area = median(area.in.um, na.rm = TRUE),
             mean_area = mean(area.in.um)) %>%
-  ungroup() %>% 
-   mutate(line = gsub("REL[67]", "REL", line)))
+  ungroup())
 ```
 
 Get total RNA per cfu for each line
@@ -305,7 +304,7 @@ mols.cfu.per.line <- mols.per.cfu.df %>%
 Join those and find the average between replicates. 
 ```{r fig.width = 4, fig.height = 4}
 fdf <- left_join(avg.sizes, mols.cfu.per.line, by = "line") %>%                                    #
-  group_by(line, median_area) %>%                                                                               # for each line
+  group_by(line, median_area) %>%                                                                  # for each line
   summarise(rna = mean(total_rna_per_cfu, na.rm = TRUE)) %>%                                       # find mean of total RNA per CFU between reps
   ungroup() %>%                                                                                    #
   mutate(mutator = ifelse(line %in% c("Ara-1", "Ara-2", "Ara-3", "Ara+3", "Ara-4"), "mut", "not")) # add mutator info
