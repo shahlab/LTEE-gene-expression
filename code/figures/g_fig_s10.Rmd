@@ -1,0 +1,111 @@
+---
+title: "Figure S10"
+output: 
+  html_document:
+    df_print: paged
+author: "John Favate"
+date: "`r Sys.time()`"
+---
+
+```{r}
+# Prevent printing of warnings and such in the HTML
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+```
+
+A single large figure where the top 5 up and down categories from each ontology are displayed, where the fill is their p-value, and the top 5 is determined by the number of times a category was significant in each line, i.e. a category that was significant 11 times would be the top category. 
+```{r}
+library(tidyverse)
+library(patchwork)
+
+go.df <- read_csv("../../data_frames/table_s13_go_results.csv")
+
+# mutator order and levels
+mut.levels <- read_csv("../../data_frames/all_data.csv") %>%
+  dplyr::select(line, mutator) %>%
+  arrange(mutator, line) %>%
+  unique() %>%
+  pull(line)
+
+mut.colors <- c("black", rep("black", 5), rep("firebrick3", 5))
+
+go.df$line <- factor(go.df$line, levels = mut.levels)
+```
+
+Find the categories that are significant in at least 4 lines
+```{r}
+cat.list <- go.df %>%                      # 
+  split(list(.$direction, .$ontology)) %>% # separate by these
+  map(function(x){                         # for each df
+    sig.ids <- x %>%                       #
+      filter(fisher <= .01) %>%            # pick the sig term
+      group_by(term) %>%                   # for each sig term
+      tally() %>%                          # count the number of times it is sig
+      filter(n >= 4) %>%                   # get those that are sig 4 or more times
+      arrange(desc(n)) %>%                 # arrange in desc order
+      pull(term) %>%                       # get the terms
+      head(n = 5)                          # take only the top 5
+  })                                       #
+
+# create a data frame from those terms using the list names and resplit
+cat.df <- enframe(cat.list) %>% 
+  unnest() %>% 
+  separate(name, into = c("direction", "ontology")) %>% 
+  split(list(.$ontology, .$direction))
+```
+
+Find those sets of categories and make 1 df per ontology.
+```{r}
+term.df.list <- lapply(cat.df, function(x){
+  # get the dfs ontology
+  ont <- unique(x$ontology)
+  
+  # get the dfs direction of change
+  direc <- unique(x$direction)
+  
+  # find those terms
+  go.df %>% 
+    filter(direction == direc & ontology == ont & term %in% x$value) 
+}) %>% 
+  bind_rows() %>%   # combine those
+  split(.$ontology) # split to ontology only
+```
+
+Then the plot
+```{r}
+fac.labs <- c("up" = "Upregulated",
+              "down" = "Downregulated",
+              "CC" = "Cellular Compartment",
+              "BP" = "Biological process",
+              "MF" = "Molecular function")
+
+p.list <- lapply(term.df.list, function(x){
+  ggplot(x, aes(line, term, fill = -log10(fisher)))+
+    geom_raster()+
+    facet_grid(direction ~ ontology, scales = "free_y", labeller = as_labeller(fac.labs))+
+    scale_fill_viridis_c(option = "C", limits = c(0, 15), name = expression(paste(-log[10], "(p-value)")),
+                         na.value = "grey30")+
+    theme(text = element_text(size = 13),
+          panel.background = element_blank(),
+          axis.ticks.y = element_blank(),
+          axis.text.x = element_text(color = mut.colors))+
+    labs(x = NULL,
+         y = NULL)
+})
+```
+
+Combine for the final figure. 
+```{r fig.width = 11, fig.height = 10}
+(ff <- (p.list[[1]] / p.list[[2]] / p.list[[3]]) + plot_layout(guides = "collect"))
+```
+
+Save it
+```{r}
+ggsave(ff, filename = "../../figures/g_fig_s10.pdf", width = 11, height = 10)
+
+ggsave(ff, filename = "../../figures/g_fig_s10.png", width = 11, height = 10, dpi = 300)
+```
+
+```{r}
+sessionInfo()
+```
+

@@ -1,5 +1,5 @@
 ---
-title: "Figure S9"
+title: "Figure S11"
 output: 
   html_document:
     df_print: paged
@@ -349,7 +349,7 @@ bottom <- pe | pf
 ```
 
 ```{r}
-ggsave(ff, filename = "../../figures/h_fig_s10.pdf", width = 15, height = 15, device = cairo_pdf)
+ggsave(ff, filename = "../../figures/h_fig_s11.pdf", width = 15, height = 15, device = cairo_pdf)
 
-ggsave(ff, filename = "../../figures/h_fig_s10.png", width = 15, height = 15, dpi = 300)
+ggsave(ff, filename = "../../figures/h_fig_s11.png", width = 15, height = 15, dpi = 300)
 ```

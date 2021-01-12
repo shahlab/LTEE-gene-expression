@@ -1,5 +1,5 @@
 ---
-title: "Figure S3"
+title: "Figure S4"
 output: 
   html_document:
     df_print: paged
@@ -126,9 +126,9 @@ mols.per.cfu.df %>%
 ```
 
 ```{r}
-ggsave(ff, filename = "../../figures/b_fig_s3.pdf", width = 13, height = 9)
+ggsave(ff, filename = "../../figures/b_fig_s4.pdf", width = 13, height = 9)
 
-ggsave(ff, filename = "../../figures/b_fig_s3.png", dpi = 300, width = 13, height = 9)
+ggsave(ff, filename = "../../figures/b_fig_s4.png", dpi = 300, width = 13, height = 9)
 ```
 
 ```{r}

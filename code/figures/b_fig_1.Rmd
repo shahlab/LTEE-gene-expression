@@ -48,29 +48,27 @@ pa
 
 ### Panel B
 
-Boxplot of cell surface area. Load the size data and convert the pixel units to um.
+The volume formula is $V = \frac{\pi}{4} * W^2 * (L - \frac{W}{3})$ where V = volume, W = width, L = length. As code, it's `volume = (pi/4)*(W^2)*(L-(W/3))`. Also add columns for mutator status and age.
 ```{r}
-size.df <- read_csv("../../data_frames/table_s3_cell_size.csv") %>%
-  filter(line != "Ara+6") %>%
-  mutate(length.in.um = SHAPE.length * .129,
-         width.in.um = SHAPE.width * .129,
-         aspect.from.um = length.in.um / width.in.um,
-         mutator = ifelse(line %in% c("Ara+6", "Ara+3", "Ara-4", "Ara-2", "Ara-1", "Ara-3"), TRUE, FALSE))
+size.df <- read_csv("../../data_frames/table_s3_cell_size.csv") %>% 
+  mutate(volume = (pi/4)*(SHAPE.width.mean^2)*(SHAPE.length-(SHAPE.length/3)),
+         mutator = ifelse(line %in% c("Ara+6", "Ara+3", "Ara-4", "Ara-2", "Ara-1", "Ara-3"), TRUE, FALSE),
+         age = ifelse(grepl("REL", line), "old", "young")) %>% 
+  filter(line != "Ara+6")
 
 head(size.df)
 ```
 
 ```{r}
-# the data frame for figure B
+# the data frame for figure 2
 bdf <- size.df %>%
-  mutate(line = ifelse(grepl("REL", line), "Anc", line),
-         age = ifelse(line == "Anc", "old", "new"))
+  mutate(line = ifelse(grepl("REL", line), "Anc", line))
 
-# Get the median ancestral area for a dotted line
-anc.median.area <- bdf %>%
+# Get the median ancestral volume for a dotted line
+anc.median.volume <- bdf %>%
   filter(line == "Anc") %>%
-  summarise(median.area = median(area.in.um, na.rm = TRUE)) %>%
-  pull(median.area)
+  summarise(median.volume = median(volume)) %>%
+  pull(median.volume)
 
 # factor the lines in anc, mut, non-mut order
 mut.levels <- bdf %>%
@@ -85,7 +83,7 @@ bdf$line <- factor(bdf$line, levels = mut.levels)
 mut.colors.a <- c("black", rep("black", 6), rep("firebrick3", 5))
 
 # get new x labs with the number of cells imaged
-newxlabs.area <- bdf %>%
+newxlabs.volume <- bdf %>%
   group_by(line) %>%
   tally() %>%
   ungroup() %>%
@@ -97,13 +95,13 @@ symnum.args <- list(cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05, 1),
                     symbols = c("****", "***", "**", "*", "ns"))
 
 pb <- bdf %>%
-  ggplot(., aes(line, area.in.um, fill = age))+
-  geom_hline(aes(yintercept = anc.median.area), linetype = 5)+
+  ggplot(., aes(line, volume, fill = age))+
+  geom_hline(aes(yintercept = anc.median.volume), linetype = 5)+
   geom_boxplot(outlier.size = 1, width = .7)+
   labs(x = NULL, 
-       y = expression(paste("Area in ", mu, "m"^2)),
+       y = "Volume in fL",
        title = "B")+
-  scale_x_discrete(labels = newxlabs.area)+
+  scale_x_discrete(labels = newxlabs.volume)+
   stat_compare_means(ref.group = "Anc", aes(label = ..p.signif..), symnum.args = symnum.args, method = "t.test")+
   theme(text = element_text(size = 13),
         panel.background = element_blank(),
@@ -118,7 +116,7 @@ pb
 
 Add the external images
 ```{r}
-png.b <- rasterGrob(readPNG("../../figures/b_bac_images.png"), interpolate = TRUE)
+png.b <- rasterGrob(readPNG("../../figures/b_bac_images2.png"), interpolate = TRUE)
 
 (pb2 <- pb + annotation_custom(png.b, xmin = .55, xmax = 12.45, ymin = -1.7, ymax = 0))
 ```
@@ -282,14 +280,22 @@ pe <- combo.df %>%
 pe
 ```
 
+t-tests to show that those are indeed different
+```{r}
+combo.df %>% 
+  filter(!(grepl("REL", line))) %>% 
+  compare_means(ratio~comp, method = "t.test", group.by = "line", data = .)
+```
+
+
 ### Panel F
 
 Correlation between size and molecules per cfu. Get median/mean sizes
 ```{r}
 (avg.sizes <- size.df %>%
   group_by(line) %>%
-  summarise(median_area = median(area.in.um, na.rm = TRUE),
-            mean_area = mean(area.in.um)) %>%
+  summarise(median_volume = median(volume),
+            mean_volume = mean(volume)) %>%
   ungroup())
 ```
 
@@ -304,7 +310,7 @@ mols.cfu.per.line <- mols.per.cfu.df %>%
 Join those and find the average between replicates. 
 ```{r fig.width = 4, fig.height = 4}
 fdf <- left_join(avg.sizes, mols.cfu.per.line, by = "line") %>%                                    #
-  group_by(line, median_area) %>%                                                                  # for each line
+  group_by(line, median_volume) %>%                                                                  # for each line
   summarise(rna = mean(total_rna_per_cfu, na.rm = TRUE)) %>%                                       # find mean of total RNA per CFU between reps
   ungroup() %>%                                                                                    #
   mutate(mutator = ifelse(line %in% c("Ara-1", "Ara-2", "Ara-3", "Ara+3", "Ara-4"), "mut", "not")) # add mutator info
@@ -315,18 +321,20 @@ Plot.
 set.seed(5)
 
 pf <- fdf %>% 
-  ggplot(., aes(median_area, rna, label = line, color = mutator))+
-  scale_y_log10(labels = scales::trans_format("log10", scales::math_format(10^.x)))+
+  ggplot(., aes(median_volume, rna, label = line, color = mutator))+
+  geom_smooth(method = "lm", inherit.aes = FALSE, aes(x = median_volume, y = rna), se = FALSE, color = "black")+
   geom_point(size = 2.5)+
   geom_text_repel(min.segment.length = .00001, box.padding = .5, alpha = .5, seed = 1)+
-  stat_cor(aes(label = ..r.label.., x = median_area, y = rna), inherit.aes = FALSE)+
+  stat_cor(aes(label = ..r.label.., x = median_volume, y = rna), inherit.aes = FALSE)+
   theme(panel.background = element_blank(),
         axis.line = element_line(color = "black"),
         text = element_text(size = 13))+
-  labs(x = expression(paste("Median area (", mu, "m"^2, ")")),
+  labs(x = "Median Volume (fL)",
        y = "RNA per CFU",
        title = "F")+
-  scale_color_manual(values = c("firebrick3", "black"), guide = FALSE)
+  scale_color_manual(values = c("firebrick3", "black"), guide = FALSE)+
+  scale_y_log10(labels = scales::trans_format("log10", scales::math_format(10^.x)))+
+  scale_x_continuous(limits = c(.5, 3.5))
 
 pf
 ```
@@ -347,8 +355,6 @@ ggsave(plot = ff, filename = "../../figures/b_fig_1.pdf", width = 15, height = 8
 
 ggsave(plot = ff, filename = "../../figures/b_fig_1.png", dpi = 300, width = 15, height = 8)
 ```
-
-### Supplemental tables from this figure
 
 ```{r}
 sessionInfo()

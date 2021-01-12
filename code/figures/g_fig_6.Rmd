@@ -275,8 +275,8 @@ pd <- pps.cors %>%
        y = "Pairwise correlation of\nPPS scores",
        title = "D")+
   scale_x_discrete(labels = c("RNA-seq", "Ribo-seq"))+
-  annotate("text", label = "p < .01", x = 1, y = 1)+
-  annotate("text", label = "p < .01", x = 2, y = 1)
+  annotate("text", label = "p < 0.01", x = 1, y = 1)+
+  annotate("text", label = "p < 0.01", x = 2, y = 1)
 
 pd
 ```
