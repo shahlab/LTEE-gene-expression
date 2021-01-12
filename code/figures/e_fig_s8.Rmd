@@ -105,7 +105,7 @@ dribo <- ddf %>%
 # combine them and plot
 pb <- bind_rows("RNA-seq" = drna, "Ribo-seq" = dribo, .id = "seqtype") %>%
   mutate(seqtype = factor(seqtype, levels = c("RNA-seq", "Ribo-seq"))) %>% 
-  ggplot(., aes(rel_name, line, fill = l2fc))+
+  ggplot(., aes(rel_name, line, fill = l2fc, label = sigstar))+
   geom_raster()+
   theme(panel.background = element_blank(),
         text = element_text(size = 13),
@@ -119,7 +119,8 @@ pb <- bind_rows("RNA-seq" = drna, "Ribo-seq" = dribo, .id = "seqtype") %>%
                        name = expression(paste(log[2], "(fold-change)", sep = "")), 
                        breaks = c(-3, -1.5, 0, 1.5, 3),
                        label = scale.labels,
-                       guide = guide_colorbar(ticks.colour = "black"))
+                       guide = guide_colorbar(ticks.colour = "black"))+
+  geom_text()
 
 pb
 ```
@@ -146,7 +147,7 @@ cribo <- ddf %>%
 # combine them and plot
 pc <- bind_rows("RNA-seq" = crna, "Ribo-seq" = cribo, .id = "seqtype") %>%
   mutate(seqtype = factor(seqtype, levels = c("RNA-seq", "Ribo-seq"))) %>% 
-  ggplot(., aes(rel_name, line, fill = l2fc))+
+  ggplot(., aes(rel_name, line, fill = l2fc, label = sigstar))+
   geom_raster()+
   theme(panel.background = element_blank(),
         text = element_text(size = 13),
@@ -160,11 +161,11 @@ pc <- bind_rows("RNA-seq" = crna, "Ribo-seq" = cribo, .id = "seqtype") %>%
                        name = expression(paste(log[2], "(fold-change)", sep = "")), 
                        breaks = c(-3, -1.5, 0, 1.5, 3),
                        label = scale.labels,
-                       guide = guide_colorbar(ticks.colour = "black"))
+                       guide = guide_colorbar(ticks.colour = "black"))+
+  geom_text()
 
 pc
 ```
-
 
 ### Final figure
 
