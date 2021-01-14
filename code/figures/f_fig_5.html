@@ -1635,7 +1635,7 @@ summary {
 
 <h1 class="title toc-ignore">Figure 5</h1>
 <h4 class="author">John Favate</h4>
-<h4 class="date">2021-01-12 10:25:10</h4>
+<h4 class="date">2021-01-14 14:39:47</h4>
 
 </div>
 
@@ -1666,14 +1666,7 @@ mut.levels &lt;- all.data %&gt;%
 
 mut.colors &lt;- c(rep(&quot;black&quot;, 6), rep(&quot;firebrick3&quot;, 5))
 
-mutations &lt;- read_csv(&quot;../../data_frames/table_s8_mutations.csv&quot;)%&gt;%
-  mutate(clone_id = str_remove(strain, &quot;REL&quot;)) %&gt;%
-  filter(population != &quot;Ara+6&quot;)
-
-my.clones &lt;- c(&quot;11330&quot;,&quot;11392&quot;,&quot;11333&quot;,&quot;11342&quot;,&quot;11345&quot;,&quot;11364&quot;,&quot;11336&quot;,&quot;11348&quot;,&quot;11339&quot;,&quot;11367&quot;,&quot;11370&quot;,&quot;11389&quot;)
-
-my.mutations &lt;- mutations %&gt;%
-  filter(clone_id %in% my.clones &amp; time == 50000)</code></pre>
+my.mutations &lt;- read_csv(&quot;../../data_frames/table_s8_mutations.csv&quot;)</code></pre>
 <p>Order the genes in all data by mean fc across the lines</p>
 <pre class="r"><code>gene.order &lt;- all.data %&gt;% 
   group_by(target_id) %&gt;% 

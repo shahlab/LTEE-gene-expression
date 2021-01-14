@@ -1635,7 +1635,7 @@ summary {
 
 <h1 class="title toc-ignore">Figure S11</h1>
 <h4 class="author">John Favate</h4>
-<h4 class="date">2021-01-08 16:51:02</h4>
+<h4 class="date">2021-01-14 14:36:27</h4>
 
 </div>
 
@@ -1652,14 +1652,7 @@ all.data &lt;- read_csv(&quot;../../data_frames/all_data.csv&quot;)
 
 gff &lt;- readGFFAsGRanges(&quot;/data/john/projects/1ltee/gffs/AraR6.gff&quot;)
 
-mutations &lt;- read_csv(&quot;../../data_frames/table_s8_mutations.csv&quot;)%&gt;%
-  mutate(clone_id = str_remove(strain, &quot;REL&quot;)) %&gt;%
-  filter(population != &quot;Ara+6&quot;)
-
-my.clones &lt;- c(&quot;11330&quot;,&quot;11392&quot;,&quot;11333&quot;,&quot;11342&quot;,&quot;11345&quot;,&quot;11364&quot;,&quot;11336&quot;,&quot;11348&quot;,&quot;11339&quot;,&quot;11367&quot;,&quot;11370&quot;,&quot;11389&quot;)
-
-my.mutations &lt;- mutations %&gt;%
-  filter(clone_id %in% my.clones &amp; time == 50000)
+my.mutations &lt;- read_csv(&quot;../../data_frames/table_s8_mutations.csv&quot;)
 
 anc.gff &lt;- readGFFAsGRanges(&quot;../../gffs/AraR6.gff&quot;)</code></pre>
 <p>The colors for the operon membership on the x axis</p>

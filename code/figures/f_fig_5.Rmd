@@ -38,14 +38,7 @@ mut.levels <- all.data %>%
 
 mut.colors <- c(rep("black", 6), rep("firebrick3", 5))
 
-mutations <- read_csv("../../data_frames/table_s8_mutations.csv")%>%
-  mutate(clone_id = str_remove(strain, "REL")) %>%
-  filter(population != "Ara+6")
-
-my.clones <- c("11330","11392","11333","11342","11345","11364","11336","11348","11339","11367","11370","11389")
-
-my.mutations <- mutations %>%
-  filter(clone_id %in% my.clones & time == 50000)
+my.mutations <- read_csv("../../data_frames/table_s8_mutations.csv")
 ```
 
 Order the genes in all data by mean fc across the lines
