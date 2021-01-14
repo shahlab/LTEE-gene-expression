@@ -1,4 +1,4 @@
-This repo contains the code and associated files for "The landscape of transcriptional and translational changes over 22 years of bacterial adaptation", found insert biorxiv link and insert final publication link. 
+This repo contains the code and associated files for "The landscape of transcriptional and translational changes over 22 years of bacterial adaptation", currently found on biorxiv (https://www.biorxiv.org/content/10.1101/2021.01.12.426406v1). 
 
 ## Repo organization
 
