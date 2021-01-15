@@ -25,7 +25,7 @@ Additionally, when knitted to an HTML, the bottom of each Rmd will display the v
 2. Analysis - run the various analyses that are based of the sequencing data.  
 3. Interpretation - make visualizations of the data acquired during the analysis phase.
 
-In order to recreate the analysis, you should first clone this repository, providing you with the code and data files necessary to run it. The next step is to create the following directory tree by running `create_dir_tree.sh`.
+In order to recreate the analysis, you simply need to clone the repository, creating a local directory structure that should match the following:
 ```
 .
 ├── alignment
@@ -49,7 +49,7 @@ In order to recreate the analysis, you should first clone this repository, provi
     └── 6-rrna_depleted
 ```
 
-The next step is to download the sequencing data, which can be found here https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE164308 and place it in /seqdata/1-original. Upon downloading the data, you should change the filenames to the following  
+Then, download the sequencing data (https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE164308) and place it in /seqdata/1-original. Upon downloading the data, you should change the filenames to the following  
 
 | GSE number 	| Sample name        	| New file name      	|
 |------------	|--------------------	|--------------------	|
@@ -62,7 +62,7 @@ The next step is to download the sequencing data, which can be found here https:
 | GSM5006212 	| rep2 RNAseq araM   	| rep2-rna-am.fq.gz  	|
 | GSM5006213 	| rep2 RNAseq araP   	| rep2-rna-ap.fq.gz  	|
 
-After that, it should just be a matter of running the code in the specified order. **To ensure smooth running of the code, start with a clean R environment for each Rmd**. Unless you need to modify the code, the safest way to run each Rmd is to simply `knit` it from within Rstudio. 
+After that, it should just be a matter of running the code in the specified order. **To ensure smooth running of the code, start with a clean R environment for each Rmd**. Unless you need to modify the code, the safest way to run each Rmd is to simply `knit` it from within Rstudio. Knitting won't work for the Rmds that use shell code, namely the first few that process the data and perform alignment. It's recommended that you copy and paste these commands into the command line to execute them, as they may not execute properly from inside Rstudio. 
 
 #### Sequencing data processing
 
