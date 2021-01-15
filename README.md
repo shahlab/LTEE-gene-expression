@@ -49,7 +49,7 @@ In order to recreate the analysis, you simply need to clone the repository, crea
     └── 6-rrna_depleted
 ```
 
-Then, download the sequencing data (https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE164308) and place it in /seqdata/1-original. Upon downloading the data, you should change the filenames to the following  
+Then, download the sequencing data (https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE164308) and place it in /seqdata/1-original. Upon downloading the data, you should change the filenames to the following new file names:
 
 | GSE number 	| Sample name        	| New file name      	|
 |------------	|--------------------	|--------------------	|
