@@ -1635,7 +1635,7 @@ summary {
 
 <h1 class="title toc-ignore">Sequencing data processing</h1>
 <h4 class="author">John Favate</h4>
-<h4 class="date">2020-12-21 08:55:22</h4>
+<h4 class="date">2021-03-15 10:01:44</h4>
 
 </div>
 
@@ -1651,14 +1651,14 @@ summary {
 knitr::opts_chunk$set(warning = FALSE, message = FALSE, fig.align = &quot;center&quot;, eval = FALSE)</code></pre>
 <p>We have 8 raw data files that use the following naming scheme: replicate-sequencing type-Ara plus (ap) or Ara minus (am).</p>
 <pre class="bash"><code>ls ../../seqdata/1-original</code></pre>
-<pre><code>## rep1-ribo-am-fr.fq.gz
-## rep1-ribo-ap-fr.fq.gz
-## rep1-rna-am-fr.fq.gz
-## rep1-rna-ap-fr.fq.gz
-## rep2-ribo-am-fr.fq.gz
-## rep2-ribo-ap-fr.fq.gz
-## rep2-rna-am-fr.fq.gz
-## rep2-rna-ap-fr.fq.gz</code></pre>
+<pre><code>## rep1-ribo-am.fq.gz
+## rep1-ribo-ap.fq.gz
+## rep1-rna-am.fq.gz
+## rep1-rna-ap.fq.gz
+## rep2-ribo-am.fq.gz
+## rep2-ribo-ap.fq.gz
+## rep2-rna-am.fq.gz
+## rep2-rna-ap.fq.gz</code></pre>
 <div id="adapter-cutting" class="section level3">
 <h3>Adapter cutting</h3>
 <p>We use Cutadapt to remove the adapters.</p>
@@ -1772,7 +1772,7 @@ done</code></pre>
 <div id="in-silico-rrna-depeletion" class="section level3">
 <h3>in silico rRNA depeletion</h3>
 <p>This is done by mapping to an rRNA index and retaining unmapped reads. make an rRNA index for e coli:</p>
-<pre class="bash"><code>hisat2-build -p 1 /data/riboseq/Supp/seqs/K12/ecoli_rrna.fa ../../alignment/hisat2/indices/ecoli_rrna</code></pre>
+<pre class="bash"><code>hisat2-build -p 1 ../../fastas/ecoli_rrna.fa ../../alignment/hisat2/indices/ecoli_rrna</code></pre>
 <p>Remove the rRNA reads</p>
 <pre class="bash"><code>for file in ../../seqdata/5-trimmed_ends/*fq.gz; do
     # get just the filename
@@ -1820,9 +1820,9 @@ done</code></pre>
 ## [1] stats     graphics  grDevices utils     datasets  methods   base     
 ## 
 ## loaded via a namespace (and not attached):
-##  [1] compiler_4.0.3  magrittr_1.5    tools_4.0.3     htmltools_0.5.0
-##  [5] yaml_2.2.1      stringi_1.4.6   rmarkdown_2.3   knitr_1.29     
-##  [9] stringr_1.4.0   xfun_0.16       digest_0.6.25   rlang_0.4.7    
+##  [1] compiler_4.0.3    magrittr_2.0.1    tools_4.0.3       htmltools_0.5.1.1
+##  [5] yaml_2.2.1        stringi_1.5.3     rmarkdown_2.3     knitr_1.29       
+##  [9] stringr_1.4.0     xfun_0.16         digest_0.6.27     rlang_0.4.10     
 ## [13] evaluate_0.14</code></pre>
 </div>
 

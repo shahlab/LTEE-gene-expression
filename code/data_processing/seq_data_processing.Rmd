@@ -139,7 +139,7 @@ done
 
 This is done by mapping to an rRNA index and retaining unmapped reads. make an rRNA index for e coli:
 ```{bash}
-hisat2-build -p 1 /data/riboseq/Supp/seqs/K12/ecoli_rrna.fa ../../alignment/hisat2/indices/ecoli_rrna
+hisat2-build -p 1 ../../fastas/ecoli_rrna.fa ../../alignment/hisat2/indices/ecoli_rrna
 ```
 
 Remove the rRNA reads
