@@ -1,3 +1,5 @@
+**THIS REPOSITIORY HAS BEEN ARCHIVED AND WILL NO LONGER BE UPDATED. A SECOND REPOSITORY FOR VERSION 2 OF THIS PAPER HAS BEEN CREATED AT https://github.com/shahlab/LTEE_gene_expression_2**
+
 This repo contains the code and associated files for "The landscape of transcriptional and translational changes over 22 years of bacterial adaptation", currently found on biorxiv (https://www.biorxiv.org/content/10.1101/2021.01.12.426406v1). 
 
 ## Repo organization
